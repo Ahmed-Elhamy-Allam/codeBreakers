@@ -68,14 +68,15 @@ export function scoreGuess(
   const solved = correctCount === len;
 
   if (!lockCorrect) {
-    // "Think harder" mode: do NOT reveal which positions are correct — only
-    // the count. Mask per-slot feedback so the client can't read positions
-    // from the network payload, and never lock anything.
-    const masked: SlotFeedback[] = feedback.map((f) => (f === 'absent' ? 'absent' : 'present'));
+    // "Think harder" mode: reveal ONLY the counts, never any per-position
+    // information. We return an all-'absent' feedback array so the client
+    // can't read which slots are correct/present from the network payload,
+    // and we never lock anything. (When solved, all slots are correct and
+    // the round is over, so it's safe to show green.)
+    const hidden: SlotFeedback[] = new Array(len).fill('absent');
     return {
       guess,
-      // When solved, all correct — safe to show; otherwise hide positions.
-      feedback: solved ? feedback : masked,
+      feedback: solved ? feedback : hidden,
       correctCount,
       presentCount,
       lockedPositions: [],
