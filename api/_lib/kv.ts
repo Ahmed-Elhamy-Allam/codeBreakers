@@ -3,8 +3,10 @@
  *
  * Uses @upstash/redis, which reads the same REST credentials Vercel injects
  * when you connect an "Upstash for Redis" store to the project. It supports
- * both the Vercel KV var names (KV_REST_API_URL / KV_REST_API_TOKEN) and the
- * native Upstash names (UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN).
+ * both the Vercel KV var names (KV_REST_API_URL / KV_REST_API_TOKEN), the
+ * native Upstash names (UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN),
+ * and integration-prefixed names like CODE_KV_REST_API_URL. The writable
+ * token is always preferred over any *_READ_ONLY_TOKEN.
  *
  * Keys are namespaced per room/round/player and expire via TTL so we never
  * leak storage on abandoned games (free-tier friendly).
@@ -27,15 +29,21 @@ function resolveCredentials(): { url?: string; token?: string } {
     return key ? env[key] : undefined;
   };
 
+  // URL: accept any *_REST_API_URL / *_REDIS_REST_URL (prefix-tolerant).
   const url =
     env.KV_REST_API_URL ??
     env.UPSTASH_REDIS_REST_URL ??
-    pick((k) => k.endsWith('REST_API_URL') || k.endsWith('REDIS_REST_URL'));
+    pick((k) => /REST_API_URL$/i.test(k) || /REDIS_REST_URL$/i.test(k));
+
+  // Token: MUST be the writable token. Explicitly exclude READ_ONLY tokens,
+  // otherwise SET operations fail with a permissions error.
+  const isWritableTokenKey = (k: string): boolean =>
+    (/REST_API_TOKEN$/i.test(k) || /REDIS_REST_TOKEN$/i.test(k)) && !/READ_ONLY/i.test(k);
 
   const token =
     env.KV_REST_API_TOKEN ??
     env.UPSTASH_REDIS_REST_TOKEN ??
-    pick((k) => k.endsWith('REST_API_TOKEN') || k.endsWith('REDIS_REST_TOKEN'));
+    pick(isWritableTokenKey);
 
   return { url, token };
 }
