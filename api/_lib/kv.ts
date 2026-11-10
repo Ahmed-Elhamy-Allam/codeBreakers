@@ -13,12 +13,45 @@ import { Redis } from '@upstash/redis';
 
 const CODE_TTL_SECONDS = 60 * 60 * 2; // 2 hours
 
+/**
+ * Resolve the Upstash REST URL + token from env, tolerating the various
+ * names Vercel integrations use. Depending on how the store is connected
+ * the vars may be `KV_REST_API_*`, `UPSTASH_REDIS_REST_*`, or carry an
+ * integration prefix such as `STORAGE_KV_REST_API_*`.
+ */
+function resolveCredentials(): { url?: string; token?: string } {
+  const env = process.env;
+
+  const pick = (matcher: (key: string) => boolean): string | undefined => {
+    const key = Object.keys(env).find((k) => matcher(k) && !!env[k]);
+    return key ? env[key] : undefined;
+  };
+
+  const url =
+    env.KV_REST_API_URL ??
+    env.UPSTASH_REDIS_REST_URL ??
+    pick((k) => k.endsWith('REST_API_URL') || k.endsWith('REDIS_REST_URL'));
+
+  const token =
+    env.KV_REST_API_TOKEN ??
+    env.UPSTASH_REDIS_REST_TOKEN ??
+    pick((k) => k.endsWith('REST_API_TOKEN') || k.endsWith('REDIS_REST_TOKEN'));
+
+  return { url, token };
+}
+
 function getClient(): Redis {
-  const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+  const { url, token } = resolveCredentials();
   if (!url || !token) {
+    // List Redis/KV-related var NAMES only (never values) to aid diagnosis.
+    const seen = Object.keys(process.env)
+      .filter((k) => /KV|REDIS|UPSTASH/i.test(k))
+      .sort();
     throw new Error(
-      'Redis credentials missing. Connect an Upstash for Redis store to the project and run `vercel env pull .env.local`.',
+      `Redis credentials missing. No REST URL/token found. ` +
+        `Redis/KV-related env vars present: [${seen.join(', ') || 'none'}]. ` +
+        `Connect an Upstash for Redis store to the project, then REDEPLOY so the ` +
+        `env vars are injected into the running deployment.`,
     );
   }
   return new Redis({ url, token });
