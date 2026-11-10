@@ -24,15 +24,23 @@ const CODE_TTL_SECONDS = 60 * 60 * 2; // 2 hours
 function resolveCredentials(): { url?: string; token?: string } {
   const env = process.env;
 
+  // Treat empty-string env vars as absent (Vercel sometimes creates blank
+  // placeholder vars like KV_REST_API_URL="" that would otherwise shadow the
+  // real CODE_-prefixed values via the ?? operator).
+  const val = (key: string): string | undefined => {
+    const v = env[key];
+    return v && v.trim() !== '' ? v : undefined;
+  };
+
   const pick = (matcher: (key: string) => boolean): string | undefined => {
-    const key = Object.keys(env).find((k) => matcher(k) && !!env[k]);
-    return key ? env[key] : undefined;
+    const key = Object.keys(env).find((k) => matcher(k) && !!val(k));
+    return key ? val(key) : undefined;
   };
 
   // URL: accept any *_REST_API_URL / *_REDIS_REST_URL (prefix-tolerant).
   const url =
-    env.KV_REST_API_URL ??
-    env.UPSTASH_REDIS_REST_URL ??
+    val('KV_REST_API_URL') ??
+    val('UPSTASH_REDIS_REST_URL') ??
     pick((k) => /REST_API_URL$/i.test(k) || /REDIS_REST_URL$/i.test(k));
 
   // Token: MUST be the writable token. Explicitly exclude READ_ONLY tokens,
@@ -41,9 +49,7 @@ function resolveCredentials(): { url?: string; token?: string } {
     (/REST_API_TOKEN$/i.test(k) || /REDIS_REST_TOKEN$/i.test(k)) && !/READ_ONLY/i.test(k);
 
   const token =
-    env.KV_REST_API_TOKEN ??
-    env.UPSTASH_REDIS_REST_TOKEN ??
-    pick(isWritableTokenKey);
+    val('KV_REST_API_TOKEN') ?? val('UPSTASH_REDIS_REST_TOKEN') ?? pick(isWritableTokenKey);
 
   return { url, token };
 }
