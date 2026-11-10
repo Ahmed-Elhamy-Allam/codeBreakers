@@ -736,6 +736,25 @@ export const useGameStore = defineStore('game', {
       }
     },
 
+    /**
+     * Host-only: end the game immediately for everyone, finalizing scores as
+     * they stand. If a round is in progress, its stats are folded in first.
+     */
+    async endGameNow(): Promise<void> {
+      if (!this.isHost || this.phase === 'finished') return;
+      // Only fold if a round is actually mid-play (roundTransition already folded).
+      if (this.phase === 'playing') this.foldRoundStats();
+      this.pushNotification({
+        kind: 'info',
+        title: 'GAME ENDED',
+        message: 'The host ended the game. Final standings are in!',
+        icon: '🏁',
+        color: 'cyan',
+        banner: true,
+      });
+      await this.finishGame();
+    },
+
     winnerIsLocalTeam(lb: LeaderboardRow[]): boolean {
       const me = this.players[this.localPlayerId];
       return lb.length > 0 && me != null && lb[0].teamId === me.teamId;

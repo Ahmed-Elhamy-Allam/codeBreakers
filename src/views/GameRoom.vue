@@ -81,6 +81,17 @@ async function advance(): Promise<void> {
   await store.nextRound();
 }
 
+const confirmEnd = ref(false);
+async function endGame(): Promise<void> {
+  if (!confirmEnd.value) {
+    confirmEnd.value = true;
+    window.setTimeout(() => (confirmEnd.value = false), 4000);
+    return;
+  }
+  confirmEnd.value = false;
+  await store.endGameNow();
+}
+
 const hints = computed(() => board.value?.hintsUsed ?? []);
 </script>
 
@@ -97,9 +108,16 @@ const hints = computed(() => board.value?.hintsUsed ?? []);
       {{ store.round < store.config.rounds ? 'Boosters applied. Brace for the next round.' : 'Final round done.' }}
     </p>
     <TeamScoreboard class="mx-auto mt-8 max-w-sm" />
-    <button v-if="store.isHost" class="btn-green mt-8" @click="advance">
-      ▶ Start Round {{ store.round + 1 }}
-    </button>
+    <div v-if="store.isHost" class="mt-8 flex flex-col items-center gap-3">
+      <button class="btn-green" @click="advance">▶ Start Round {{ store.round + 1 }}</button>
+      <button
+        class="btn-danger text-sm"
+        :class="confirmEnd ? 'animate-pulseGlow' : ''"
+        @click="endGame"
+      >
+        {{ confirmEnd ? 'Tap again to confirm — end game now' : '⏹ End Game for Everyone' }}
+      </button>
+    </div>
     <p v-else class="mt-8 animate-pulseGlow text-cyan-600">Waiting for host…</p>
   </div>
 
@@ -107,11 +125,22 @@ const hints = computed(() => board.value?.hintsUsed ?? []);
   <div v-else :class="shaking ? 'animate-shake' : ''" class="mx-auto max-w-6xl pt-2">
     <!-- Top status bar -->
     <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <div class="panel px-4 py-2">
-        <span class="text-xs uppercase text-cyan-700">Round</span>
-        <span class="ml-2 font-display text-xl neon-text-magenta">
-          {{ store.round }} / {{ store.config.rounds }}
-        </span>
+      <div class="flex items-center gap-3">
+        <div class="panel px-4 py-2">
+          <span class="text-xs uppercase text-cyan-700">Round</span>
+          <span class="ml-2 font-display text-xl neon-text-magenta">
+            {{ store.round }} / {{ store.config.rounds }}
+          </span>
+        </div>
+        <button
+          v-if="store.isHost"
+          class="btn-danger px-3 py-2 text-xs"
+          :class="confirmEnd ? 'animate-pulseGlow' : ''"
+          :title="confirmEnd ? 'Tap again to confirm' : 'End the game for all players'"
+          @click="endGame"
+        >
+          {{ confirmEnd ? 'Confirm end?' : '⏹ End Game' }}
+        </button>
       </div>
       <PoolMeter class="min-w-[180px]" />
     </div>
