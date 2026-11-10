@@ -4,25 +4,41 @@ Minimal multiplayer scaffold for a "guess the code" game. Same stack as the
 `engagement` project, with **live multiplayer** (host + players join by PIN and
 connect in real time). Deployed on **Vercel** (free Hobby tier — no Amplify).
 
+The full game (ported from the `UX/` prototype) in a production stack: crack a
+secret four-digit code faster than your friends, across devices.
+
 ## Stack
 
 - **Vue 3** + **Vite** + **TypeScript**
 - **Tailwind CSS v4** (`@tailwindcss/vite`)
-- **Pinia** (state) + **vue-router** (routing)
-- **Ably** for realtime multiplayer (one channel per game PIN)
+- **Pinia** for all game state and scoring logic
+- **Ably** for realtime multiplayer (one channel per room code)
+- **lucide-vue-next** for icons
 - **Vercel serverless functions** under `api/` (via `@vercel/node`)
 
 ## How the multiplayer flow works
 
-1. Host clicks **Host a game** → `POST /api/game/create` returns a 6-digit PIN →
-   host lands in the lobby and subscribes to the Ably channel `game-<pin>`.
-2. Player clicks **Join a game**, enters the PIN + nickname →
-   `POST /api/game/[pin]/join` → player lands in their lobby.
-3. The player publishes a `player-joined` event on `game-<pin>`; the host
-   receives it live and the player appears in the host's list instantly.
+The app is a single screen driven by `page` state in the Pinia store (`home` →
+`lobby` → `game`), the same flow as the `UX/` prototype. Realtime uses a
+**host-authoritative** model over Ably:
 
-That's the whole realtime skeleton — add your game events (question-start,
-submit-answer, show-results, …) by extending `useRealtime` and the store.
+1. A player chooses **Create a room** → gets a 6-char code and becomes the
+   **host**. The host owns the authoritative `room` object and broadcasts it as
+   `room-state` on the Ably channel `game-<code>`.
+2. Another player chooses **Join a room**, enters the code + name, connects to
+   the same channel, publishes a `join` event, and requests the current state.
+3. The host adds the player and rebroadcasts `room-state`; everyone's UI
+   updates live. Players send `guess` events; the host scores them (clue
+   counts, time + placement points), updates `room`, and rebroadcasts.
+4. Presence is used so the host drops players whose tabs disconnect.
+
+All game rules (secret generation, clue scoring, rounds, leaderboard) live in
+`src/stores/gameStore.ts`. Realtime transport lives in
+`src/composables/useRealtime.ts` with typed events in `src/types/game.ts`.
+
+The `api/game/*` routes are stateless helpers (mint a room code / validate a
+join) — live state flows through Ably. Back them with Vercel KV / Redis if you
+want server-authoritative rooms.
 
 ## Setup
 
@@ -61,17 +77,15 @@ Routing + API CORS are configured in `vercel.json`.
 
 ```
 api/
-  game/create.ts          POST → creates a game, returns PIN
-  game/[pin]/join.ts      POST → player joins by PIN
+  game/create.ts          POST → mints a room code
+  game/[pin]/join.ts      POST → validates a join (live join is over Ably)
 src/
-  composables/useRealtime.ts   Ably wrapper (publish/subscribe per PIN)
-  stores/gameStore.ts          Pinia store (pin, players, me, status)
-  pages/
-    HomePage.vue          host or join
-    HostLobby.vue         live player list
-    PlayerJoin.vue        enter PIN + nickname
-    PlayerLobby.vue       waiting room, announces join
-  router/index.ts
+  App.vue                 the whole game UI (home / lobby / game)
+  composables/useRealtime.ts   Ably wrapper (typed events, presence, per room)
+  stores/gameStore.ts          Pinia store: room state + all game logic
+  types/game.ts                shared types + realtime event union
+  style.css                    full game stylesheet
+  main.ts
 vercel.json               rewrites + API CORS headers
 ```
 
