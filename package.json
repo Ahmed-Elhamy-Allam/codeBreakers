@@ -12,6 +12,7 @@
     "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@microsoft/clarity": "^1.0.2",
     "ably": "^2.6.1",
     "canvas-confetti": "^1.9.3",
     "pinia": "^2.2.6",

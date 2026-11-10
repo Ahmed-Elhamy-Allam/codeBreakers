@@ -32,6 +32,7 @@ import { ablyService } from '@/services/ably';
 import { chatService, randomAlias } from '@/services/chat';
 import { api } from '@/services/api';
 import { sound } from '@/services/SoundService';
+import { identifyPlayer, setTag, trackEvent } from '@/services/analytics';
 
 function genId(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -187,6 +188,11 @@ export const useGameStore = defineStore('game', {
         this.players = { [player.id]: player };
         this.teams.alpha.memberIds = [player.id];
 
+        identifyPlayer(player.id, player.name);
+        setTag('role', 'host');
+        setTag('roomCode', roomCode);
+        trackEvent('room_hosted');
+
         await this.connectAbly(roomCode);
         return roomCode;
       } catch (err) {
@@ -216,6 +222,11 @@ export const useGameStore = defineStore('game', {
           stats: emptyStats(),
         };
         this.players = { [player.id]: player };
+
+        identifyPlayer(player.id, player.name);
+        setTag('role', 'player');
+        setTag('roomCode', this.roomCode);
+        trackEvent('room_joined');
 
         await this.connectAbly(this.roomCode);
         await ablyService.enterPresence(player);
@@ -352,6 +363,14 @@ export const useGameStore = defineStore('game', {
       const pools: Record<string, number> = {};
       for (const id of TEAM_ORDER.slice(0, this.config.teamCount)) pools[id] = initial;
       this.teamPools = pools;
+
+      setTag('mode', this.config.mode);
+      setTag('teams', String(this.config.teamCount));
+      setTag('rounds', String(this.config.rounds));
+      setTag('hardMode', String(this.config.hardMode));
+      setTag('lockCorrect', String(this.config.lockCorrect));
+      trackEvent('game_started');
+
       await this.beginRound();
       sound.play('countdown');
     },
@@ -473,6 +492,7 @@ export const useGameStore = defineStore('game', {
 
       sound.play('win');
       this.showBoosterModal = true;
+      trackEvent('code_solved');
 
       await this.broadcast({
         type: 'playerSolved',
@@ -526,6 +546,7 @@ export const useGameStore = defineStore('game', {
           round: this.round,
         });
         board.hintsUsed.push(hint);
+        trackEvent('hint_purchased');
 
         // Deduct the cost from THIS TEAM's pool only. In time mode we lower the
         // banked value and re-anchor roundStartedAt so the live countdown stays
@@ -607,6 +628,8 @@ export const useGameStore = defineStore('game', {
           break;
       }
       if (this.config.mode === 'time') this.roundStartedAt = Date.now();
+
+      trackEvent(`booster_${type}`);
 
       await this.broadcast({
         type: 'boosterChosen',
@@ -733,6 +756,7 @@ export const useGameStore = defineStore('game', {
       this.phase = 'finished';
       const leaderboard = this.buildLeaderboard();
       this.leaderboard = leaderboard;
+      trackEvent('game_finished');
       sound.play(this.winnerIsLocalTeam(leaderboard) ? 'win' : 'lose');
       if (this.isHost) {
         await this.broadcast({

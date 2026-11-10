@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { sound } from '@/services/SoundService';
 import { useGameStore } from '@/stores/gameStore';
+import { initAnalytics, grantConsent } from '@/services/analytics';
 import SoundToggle from '@/components/SoundToggle.vue';
 import HowToPlayModal from '@/components/HowToPlayModal.vue';
 import NotificationCenter from '@/components/NotificationCenter.vue';
@@ -28,6 +29,10 @@ onMounted(() => {
 
   // Global chat is available everywhere — connect on app start.
   void store.initChat();
+
+  // Microsoft Clarity analytics (session replays, heatmaps, usage insights).
+  initAnalytics();
+  grantConsent(true);
 });
 </script>
 
