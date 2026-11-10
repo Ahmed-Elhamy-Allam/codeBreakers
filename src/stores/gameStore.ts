@@ -12,7 +12,6 @@ import {
   DEFAULT_ROOM_CONFIG,
   TEAM_META,
   TEAM_ORDER,
-  TOTAL_ROUNDS,
   emptyStats,
   type BoosterType,
   type ChatMessage,
@@ -190,17 +189,19 @@ export const useGameStore = defineStore('game', {
       }
     },
 
-    async joinRoom(playerName: string, roomCode: string, teamId: TeamId): Promise<void> {
+    async joinRoom(playerName: string, roomCode: string): Promise<void> {
       this.connecting = true;
       this.error = null;
       try {
         this.localPlayerId = genId();
         this.roomCode = roomCode.toUpperCase();
 
+        // Joiners start unseated on 'alpha'; they pick their real team in the
+        // lobby once they can see how many teams the host actually created.
         const player: Player = {
           id: this.localPlayerId,
           name: playerName,
-          teamId,
+          teamId: 'alpha',
           isHost: false,
           connected: true,
           totalScore: 0,
@@ -706,7 +707,7 @@ export const useGameStore = defineStore('game', {
       if (!this.isHost) return;
       if (!this.allPlayersDone()) return;
       this.foldRoundStats();
-      if (this.round >= TOTAL_ROUNDS) {
+      if (this.round >= this.config.rounds) {
         void this.finishGame();
       } else {
         this.phase = 'roundTransition';

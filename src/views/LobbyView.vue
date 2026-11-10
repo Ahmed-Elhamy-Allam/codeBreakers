@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/gameStore';
-import { TEAM_META, type GameMode, type TeamId, type RoomConfig } from '@/types/game';
+import { TEAM_META, ROUND_OPTIONS, type GameMode, type TeamId, type RoomConfig } from '@/types/game';
 import { sound } from '@/services/SoundService';
 
 const router = useRouter();
@@ -42,6 +42,11 @@ function setMode(m: GameMode): void {
 
 async function reassign(playerId: string, teamId: TeamId): Promise<void> {
   await store.assignTeam(playerId, teamId);
+}
+
+/** The local player picks their own team. */
+async function joinTeam(teamId: TeamId): Promise<void> {
+  await store.assignTeam(store.localPlayerId, teamId);
 }
 
 // Drag & drop
@@ -173,6 +178,22 @@ function copyCode(): void {
             </div>
           </div>
 
+          <!-- Rounds -->
+          <div>
+            <label class="mb-1 block text-xs uppercase text-cyan-600">Number of Rounds</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                v-for="n in ROUND_OPTIONS"
+                :key="n"
+                class="panel py-2"
+                :class="cfg.rounds === n ? 'border-neon-cyan shadow-neon-cyan' : 'opacity-60'"
+                @click="cfg.rounds = n; pushConfig()"
+              >
+                {{ n }} {{ n === 1 ? 'round' : 'rounds' }}
+              </button>
+            </div>
+          </div>
+
           <!-- Hard mode -->
           <label class="flex items-center justify-between rounded-lg border border-cyber-border p-3">
             <span>
@@ -212,28 +233,41 @@ function copyCode(): void {
       <section class="lg:col-span-3">
         <h2 class="mb-4 font-display text-lg neon-text-cyan">
           Teams
-          <span v-if="store.isHost" class="text-xs text-cyan-700">
-            // drag players to reassign
+          <span class="text-xs text-cyan-700">
+            // {{ store.isHost ? 'drag players to reassign, or ' : '' }}click a team to join it
           </span>
         </h2>
         <div class="grid gap-4 sm:grid-cols-2">
           <div
             v-for="team in activeTeams"
             :key="team.id"
-            class="panel min-h-[140px] p-4"
-            :class="teamColors[TEAM_META[team.id].color]"
+            class="panel min-h-[140px] p-4 transition"
+            :class="[
+              teamColors[TEAM_META[team.id].color],
+              store.localPlayer?.teamId === team.id ? 'ring-2 ring-white/30' : '',
+            ]"
             @dragover.prevent
             @drop="onDrop($event, team.id)"
           >
-            <h3 class="mb-3 font-display font-bold uppercase tracking-wider">
-              {{ team.name }}
-              <span class="text-xs opacity-70">({{ store.playersByTeam(team.id).length }})</span>
-            </h3>
+            <div class="mb-3 flex items-center justify-between">
+              <h3 class="font-display font-bold uppercase tracking-wider">
+                {{ team.name }}
+                <span class="text-xs opacity-70">({{ store.playersByTeam(team.id).length }})</span>
+              </h3>
+              <button
+                v-if="store.localPlayer?.teamId !== team.id"
+                class="rounded border border-current px-2 py-1 text-[11px] font-bold uppercase tracking-wider opacity-90 hover:opacity-100"
+                @click="joinTeam(team.id)"
+              >
+                Join
+              </button>
+              <span v-else class="text-[11px] uppercase tracking-wider opacity-80">● your team</span>
+            </div>
             <ul class="space-y-2">
               <li
                 v-for="p in store.playersByTeam(team.id)"
                 :key="p.id"
-                draggable="true"
+                :draggable="store.isHost"
                 class="flex items-center justify-between rounded border border-cyber-border bg-cyber-bg/60 px-3 py-2 text-sm text-gray-200"
                 @dragstart="onDragStart($event, p.id)"
               >

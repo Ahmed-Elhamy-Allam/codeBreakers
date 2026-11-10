@@ -13,7 +13,11 @@
 /** How a round is bounded. The clock is a SHARED team pool. */
 export type GameMode = 'time' | 'tries';
 
+/** Default number of rounds; also the historical constant. */
 export const TOTAL_ROUNDS = 3 as const;
+
+/** Round-count options a host may pick. */
+export const ROUND_OPTIONS = [1, 3, 5] as const;
 
 /** Max teams a host may create. */
 export type TeamCount = 2 | 3 | 4;
@@ -88,6 +92,8 @@ export interface RoomConfig {
   /** Tries mode: total SHARED tries for the whole game (default 30). */
   totalTries: number;
   teamCount: TeamCount;
+  /** Number of rounds in the game (default 3). */
+  rounds: number;
   /** Hard mode => repeated digits allowed (harder). Easy => unique digits. */
   hardMode: boolean;
   /** Starting number of digits in each secret code (default 4). */
@@ -108,6 +114,7 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   totalTimeSeconds: 600,
   totalTries: 30,
   teamCount: 2,
+  rounds: TOTAL_ROUNDS,
   hardMode: false,
   codeLength: 4,
   hintCost: 60,

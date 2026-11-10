@@ -2,7 +2,7 @@
 import { onMounted } from 'vue';
 import confetti from 'canvas-confetti';
 import { useGameStore } from '@/stores/gameStore';
-import { TEAM_META, TOTAL_ROUNDS } from '@/types/game';
+import { TEAM_META } from '@/types/game';
 
 const store = useGameStore();
 
@@ -52,7 +52,7 @@ onMounted(() => {
       FINAL STANDINGS
     </h1>
     <p class="mb-8 text-center text-sm uppercase tracking-[0.3em] text-cyan-700">
-      {{ TOTAL_ROUNDS }} rounds // the dust settles
+      {{ store.config.rounds }} rounds // the dust settles
     </p>
 
     <div class="space-y-4">
@@ -107,7 +107,7 @@ onMounted(() => {
               </span>
               <span class="text-right font-mono text-neon-green">
                 <span class="text-[10px] uppercase text-cyan-800 sm:hidden">solved </span>
-                {{ p.roundsSolved }}/{{ TOTAL_ROUNDS }}
+                {{ p.roundsSolved }}/{{ store.config.rounds }}
               </span>
               <span class="text-right font-mono text-cyan-400">
                 <span class="text-[10px] uppercase text-cyan-800 sm:hidden">time </span>

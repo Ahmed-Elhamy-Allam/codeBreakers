@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/gameStore';
-import { DEFAULT_ROOM_CONFIG, TEAM_META, TEAM_ORDER, type TeamId } from '@/types/game';
+import { DEFAULT_ROOM_CONFIG } from '@/types/game';
 import { sound } from '@/services/SoundService';
 import HowToPlayModal from '@/components/HowToPlayModal.vue';
 
@@ -12,7 +12,6 @@ const store = useGameStore();
 const tab = ref<'host' | 'join'>('host');
 const name = ref('');
 const roomCode = ref('');
-const team = ref<TeamId>('alpha');
 const busy = ref(false);
 const err = ref<string | null>(null);
 const showHelp = ref(false);
@@ -48,7 +47,7 @@ async function join(): Promise<void> {
   err.value = null;
   try {
     sound.play('click');
-    await store.joinRoom(name.value.trim(), roomCode.value.trim(), team.value);
+    await store.joinRoom(name.value.trim(), roomCode.value.trim());
     await router.push('/lobby');
   } catch (e) {
     err.value = (e as Error).message;
@@ -179,17 +178,14 @@ function submit(): void {
             @keyup.enter="submit"
           />
 
-          <label class="mb-1 block text-xs uppercase text-cyan-600">Pick a team</label>
-          <div class="mb-4 grid grid-cols-2 gap-2">
-            <button
-              v-for="tid in TEAM_ORDER.slice(0, 4)"
-              :key="tid"
-              class="panel px-3 py-2 text-sm transition"
-              :class="team === tid ? 'border-neon-cyan shadow-neon-cyan' : 'opacity-60'"
-              @click="team = tid; sound.play('click')"
-            >
-              {{ TEAM_META[tid].name }}
-            </button>
+          <div class="mb-4 flex items-start gap-3 rounded-lg border border-cyber-border bg-cyber-bg/60 p-3">
+            <span class="text-xl">🧭</span>
+            <div>
+              <strong class="text-sm text-gray-200">Pick your team in the lobby.</strong>
+              <p class="text-xs text-cyan-600">
+                You'll choose a team once you're in and can see how many the host set up.
+              </p>
+            </div>
           </div>
         </template>
 

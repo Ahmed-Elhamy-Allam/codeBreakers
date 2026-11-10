@@ -3,7 +3,6 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import confetti from 'canvas-confetti';
 import { useGameStore } from '@/stores/gameStore';
-import { TOTAL_ROUNDS } from '@/types/game';
 import PoolMeter from '@/components/PoolMeter.vue';
 import TeamScoreboard from '@/components/TeamScoreboard.vue';
 import GuessHistory from '@/components/GuessHistory.vue';
@@ -95,7 +94,7 @@ const hints = computed(() => board.value?.hintsUsed ?? []);
       ROUND {{ store.round }} COMPLETE
     </h1>
     <p class="mt-4 text-cyan-600">
-      {{ store.round < TOTAL_ROUNDS ? 'Boosters applied. Brace for the next round.' : 'Final round done.' }}
+      {{ store.round < store.config.rounds ? 'Boosters applied. Brace for the next round.' : 'Final round done.' }}
     </p>
     <TeamScoreboard class="mx-auto mt-8 max-w-sm" />
     <button v-if="store.isHost" class="btn-green mt-8" @click="advance">
@@ -111,7 +110,7 @@ const hints = computed(() => board.value?.hintsUsed ?? []);
       <div class="panel px-4 py-2">
         <span class="text-xs uppercase text-cyan-700">Round</span>
         <span class="ml-2 font-display text-xl neon-text-magenta">
-          {{ store.round }} / {{ TOTAL_ROUNDS }}
+          {{ store.round }} / {{ store.config.rounds }}
         </span>
       </div>
       <PoolMeter class="min-w-[180px]" />
