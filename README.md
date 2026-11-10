@@ -1,26 +1,40 @@
 # Code Breakers
 
-A "guess the code" game — a snippet is shown and you pick which programming
-language it's written in. Built with the same stack as the `engagement`
-project and deployed on **Vercel** (free Hobby tier).
+Minimal multiplayer scaffold for a "guess the code" game. Same stack as the
+`engagement` project, with **live multiplayer** (host + players join by PIN and
+connect in real time). Deployed on **Vercel** (free Hobby tier — no Amplify).
 
 ## Stack
 
 - **Vue 3** + **Vite** + **TypeScript**
 - **Tailwind CSS v4** (`@tailwindcss/vite`)
-- **Pinia** for state, **vue-router** for routing
+- **Pinia** (state) + **vue-router** (routing)
+- **Ably** for realtime multiplayer (one channel per game PIN)
 - **Vercel serverless functions** under `api/` (via `@vercel/node`)
 
-## Local development
+## How the multiplayer flow works
+
+1. Host clicks **Host a game** → `POST /api/game/create` returns a 6-digit PIN →
+   host lands in the lobby and subscribes to the Ably channel `game-<pin>`.
+2. Player clicks **Join a game**, enters the PIN + nickname →
+   `POST /api/game/[pin]/join` → player lands in their lobby.
+3. The player publishes a `player-joined` event on `game-<pin>`; the host
+   receives it live and the player appears in the host's list instantly.
+
+That's the whole realtime skeleton — add your game events (question-start,
+submit-answer, show-results, …) by extending `useRealtime` and the store.
+
+## Setup
+
+1. Create a free Ably account at https://ably.com and copy an API key.
+2. Copy `.env.example` to `.env.local` and fill in `VITE_ABLY_PUBLIC_KEY`.
 
 ```bash
 npm install
-npm run dev
+npm run dev          # http://localhost:5173
 ```
 
-The app runs at http://localhost:5173.
-
-To run the serverless `api/` routes locally too, use the Vercel CLI:
+To run the `api/` serverless routes locally, use the Vercel CLI:
 
 ```bash
 npm i -g vercel
@@ -30,33 +44,41 @@ vercel dev
 ## Build
 
 ```bash
-npm run build      # type-checks with vue-tsc, then builds to dist/
-npm run preview    # preview the production build
+npm run build        # vue-tsc type-check + vite build → dist/
+npm run preview
 ```
 
 ## Deploy to Vercel (free)
 
-This project needs **no Amplify** — Vercel's free Hobby tier hosts both the
-static frontend and the `api/` serverless functions.
+1. Push to GitHub/GitLab/Bitbucket.
+2. vercel.com → "Add New → Project" → import the repo (auto-detects Vite).
+3. Add env vars from `.env.example` in Project Settings.
+4. Deploy. Production deploy + per-branch previews on every push.
 
-1. Push this repo to GitHub/GitLab/Bitbucket.
-2. Go to https://vercel.com, "Add New → Project", and import the repo.
-3. Vercel auto-detects Vite. Defaults are correct:
-   - Build command: `npm run build`
-   - Output directory: `dist`
-4. Add any environment variables (see `.env.example`) in Project Settings.
-5. Deploy. Every push gives you a production deploy plus per-branch previews.
+Routing + API CORS are configured in `vercel.json`.
 
-Routing and API CORS are configured in `vercel.json`.
-
-## Project structure
+## Structure
 
 ```
-api/              Vercel serverless functions (e.g. /api/health)
+api/
+  game/create.ts          POST → creates a game, returns PIN
+  game/[pin]/join.ts      POST → player joins by PIN
 src/
-  data/           Code snippets / game rounds
-  pages/          Home, Play, Results
-  router/         vue-router config
-  stores/         Pinia game store
-vercel.json       Rewrites + API CORS headers
+  composables/useRealtime.ts   Ably wrapper (publish/subscribe per PIN)
+  stores/gameStore.ts          Pinia store (pin, players, me, status)
+  pages/
+    HomePage.vue          host or join
+    HostLobby.vue         live player list
+    PlayerJoin.vue        enter PIN + nickname
+    PlayerLobby.vue       waiting room, announces join
+  router/index.ts
+vercel.json               rewrites + API CORS headers
 ```
+
+## Notes
+
+- `.npmrc` points at the internal Telenor Nexus registry. Vercel's build
+  servers can't reach it — drop or override `.npmrc` for the Vercel build.
+- The `api/` routes use an in-memory store for demo only; it won't persist
+  across serverless invocations. Use Vercel KV / Redis / Firebase for real
+  game state. Live presence already works through Ably regardless.

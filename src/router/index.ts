@@ -9,14 +9,19 @@ const router = createRouter({
       component: () => import('@/pages/HomePage.vue'),
     },
     {
-      path: '/play',
-      name: 'play',
-      component: () => import('@/pages/PlayPage.vue'),
+      path: '/host/:pin',
+      name: 'host',
+      component: () => import('@/pages/HostLobby.vue'),
     },
     {
-      path: '/results',
-      name: 'results',
-      component: () => import('@/pages/ResultsPage.vue'),
+      path: '/join',
+      name: 'join',
+      component: () => import('@/pages/PlayerJoin.vue'),
+    },
+    {
+      path: '/lobby/:pin',
+      name: 'lobby',
+      component: () => import('@/pages/PlayerLobby.vue'),
     },
   ],
 })
