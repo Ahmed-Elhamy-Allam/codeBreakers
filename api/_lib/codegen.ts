@@ -20,8 +20,19 @@ export function generateCode(length: number, hardMode: boolean, existing: number
     digits.push(d);
   }
 
-  // If shrinking, just truncate (handled by slice above).
-  return digits.slice(0, length);
+  // If shrinking, just truncate.
+  const code = digits.slice(0, length);
+
+  // Anti-cheat: never let every digit be identical (e.g. 7777) — it's
+  // trivially guessable. Only possible in hard mode (repeats allowed) with
+  // length >= 2; fix it by changing the last digit to a different one.
+  if (code.length >= 2 && code.every((d) => d === code[0])) {
+    let replacement = Math.floor(Math.random() * 10);
+    if (replacement === code[0]) replacement = (replacement + 1) % 10;
+    code[code.length - 1] = replacement;
+  }
+
+  return code;
 }
 
 /**
