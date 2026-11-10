@@ -70,7 +70,7 @@ export interface RoomConfig {
   /** Tries mode: total SHARED tries for the whole game (default 30). */
   totalTries: number;
   teamCount: TeamCount;
-  /** Hard mode => unique digits only (no repeats). */
+  /** Hard mode => repeated digits allowed (harder). Easy => unique digits. */
   hardMode: boolean;
   /** Starting number of digits in each secret code (default 4). */
   codeLength: number;

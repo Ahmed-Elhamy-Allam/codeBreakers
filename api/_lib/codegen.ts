@@ -4,14 +4,19 @@
  */
 import type { GuessResult, SlotFeedback } from '../../src/types/game.js';
 
-/** Generate a secret code. Respects hard mode (unique digits). */
+/**
+ * Generate a secret code.
+ * Hard mode => repeats ALLOWED (harder: ambiguous feedback, more combos).
+ * Easy (default) => UNIQUE digits only (easier to deduce).
+ */
 export function generateCode(length: number, hardMode: boolean, existing: number[] = []): number[] {
   // Preserve already-locked / existing leading digits when resizing.
   const digits: number[] = existing.slice(0, length);
 
   while (digits.length < length) {
     const d = Math.floor(Math.random() * 10);
-    if (hardMode && digits.includes(d)) continue;
+    // Easy mode enforces uniqueness; hard mode permits repeats.
+    if (!hardMode && digits.includes(d)) continue;
     digits.push(d);
   }
 

@@ -177,7 +177,9 @@ function copyCode(): void {
           <label class="flex items-center justify-between rounded-lg border border-cyber-border p-3">
             <span>
               <span class="neon-text-magenta">Hard Mode</span>
-              <span class="block text-xs text-cyan-700">Unique digits only (no repeats)</span>
+              <span class="block text-xs text-cyan-700">
+                Allow repeated digits (easy mode = all unique)
+              </span>
             </span>
             <input
               type="checkbox"
