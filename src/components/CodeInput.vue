@@ -30,6 +30,14 @@ const isLocked = (i: number): boolean => props.lockedPositions.includes(i);
 
 const complete = computed(() => digits.value.every((d) => d !== null));
 
+/** All digits identical (e.g. 7777) — disallowed to prevent brute-forcing. */
+const allSame = computed(
+  () => complete.value && props.length >= 2 && digits.value.every((d) => d === digits.value[0]),
+);
+
+/** A guess is valid only if complete and not all-identical. */
+const valid = computed(() => complete.value && !allSame.value);
+
 /** Index of the first non-locked, empty slot; falls back to first unlocked. */
 function firstAvailableIndex(): number {
   for (let i = 0; i < props.length; i++) {
@@ -113,13 +121,13 @@ function onKeydown(i: number, ev: KeyboardEvent): void {
       }
       break;
     case 'Enter':
-      if (complete.value) submit();
+      if (valid.value) submit();
       break;
   }
 }
 
 function submit(): void {
-  if (!complete.value || props.disabled) return;
+  if (!valid.value || props.disabled) return;
   emit('submit', digits.value.map((d) => d as number));
 }
 
@@ -153,8 +161,11 @@ defineExpose({
         @keydown="onKeydown(i, $event)"
       />
     </div>
-    <button class="btn-green w-full max-w-xs" :disabled="!complete || disabled" @click="submit">
+    <button class="btn-green w-full max-w-xs" :disabled="!valid || disabled" @click="submit">
       ⏎ SUBMIT GUESS
     </button>
+    <p v-if="allSame" class="text-xs text-neon-red">
+      ⚠ You can't make every digit the same — mix it up.
+    </p>
   </div>
 </template>
