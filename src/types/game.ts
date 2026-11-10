@@ -194,8 +194,13 @@ export interface GameState {
   players: Record<string, Player>;
   teams: Record<string, Team>;
   boards: Record<string, PlayerBoard>;
-  /** Shared pool: seconds (time mode) or tries (tries mode) remaining. */
-  sharedPool: number;
+  /**
+   * Per-TEAM pool: seconds (time mode) or tries (tries mode) remaining.
+   * Each team has its own pool — hints/boosters only affect the acting team.
+   * In time mode this is the pool value "banked" at the last round start;
+   * live remaining time subtracts elapsed since `roundStartedAt`.
+   */
+  teamPools: Record<string, number>;
   /** Server (host) epoch ms when the current round's clock started. */
   roundStartedAt: number | null;
   /** Finish order (playerIds) for the current round. */
@@ -252,7 +257,7 @@ export type BoosterChosenEvent = BaseEvent<
   'boosterChosen',
   { playerId: string; booster: BoosterType; targetPlayerId?: string }
 >;
-export type PoolUpdatedEvent = BaseEvent<'poolUpdated', { sharedPool: number; teamId: TeamId }>;
+export type PoolUpdatedEvent = BaseEvent<'poolUpdated', { pool: number; teamId: TeamId }>;
 export type RoundAdvancedEvent = BaseEvent<'roundAdvanced', { state: GameState }>;
 export type GameFinishedEvent = BaseEvent<
   'gameFinished',
@@ -260,7 +265,7 @@ export type GameFinishedEvent = BaseEvent<
 >;
 export type HintPurchasedEvent = BaseEvent<
   'hintPurchased',
-  { playerId: string; hint: string; newPool: number }
+  { playerId: string; teamId: TeamId; hint: string; newPool: number }
 >;
 
 export type GameEvent =

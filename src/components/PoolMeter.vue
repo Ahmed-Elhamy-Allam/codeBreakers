@@ -31,7 +31,7 @@ watch(danger, (isDanger, was) => {
     :class="danger ? 'border-neon-red shadow-neon-red animate-pulseGlow' : ''"
   >
     <p class="text-xs uppercase tracking-widest text-cyan-700">
-      {{ isTime ? 'Shared Time' : 'Shared Tries' }}
+      Your Team {{ isTime ? 'Time' : 'Tries' }}
     </p>
     <p
       class="font-display text-5xl font-black tabular-nums"
@@ -39,6 +39,8 @@ watch(danger, (isDanger, was) => {
     >
       {{ display }}
     </p>
-    <p class="text-[10px] uppercase tracking-widest text-cyan-800">pooled across your team</p>
+    <p class="text-[10px] uppercase tracking-widest text-cyan-800">
+      pooled across your team only
+    </p>
   </div>
 </template>

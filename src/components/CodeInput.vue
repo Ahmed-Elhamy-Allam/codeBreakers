@@ -30,6 +30,27 @@ const isLocked = (i: number): boolean => props.lockedPositions.includes(i);
 
 const complete = computed(() => digits.value.every((d) => d !== null));
 
+/** Index of the first non-locked, empty slot; falls back to first unlocked. */
+function firstAvailableIndex(): number {
+  for (let i = 0; i < props.length; i++) {
+    if (!isLocked(i) && digits.value[i] === null) return i;
+  }
+  for (let i = 0; i < props.length; i++) {
+    if (!isLocked(i)) return i;
+  }
+  return -1;
+}
+
+function focusIndex(i: number): void {
+  if (i < 0) return;
+  void nextTick(() => inputs.value[i]?.focus());
+}
+
+/** Move focus to the first available slot (used after reset / on mount). */
+function focusFirstAvailable(): void {
+  focusIndex(firstAvailableIndex());
+}
+
 function onInput(i: number, ev: Event): void {
   if (isLocked(i)) return;
   const el = ev.target as HTMLInputElement;
@@ -38,29 +59,62 @@ function onInput(i: number, ev: Event): void {
   el.value = val;
   if (val !== '') {
     sound.play('key');
-    focusNext(i);
+    focusNextUnlocked(i);
   }
 }
 
-function focusNext(i: number): void {
+function focusNextUnlocked(i: number): void {
   for (let j = i + 1; j < props.length; j++) {
     if (!isLocked(j)) {
-      void nextTick(() => inputs.value[j]?.focus());
+      focusIndex(j);
+      return;
+    }
+  }
+}
+
+function focusPrevUnlocked(i: number): void {
+  for (let j = i - 1; j >= 0; j--) {
+    if (!isLocked(j)) {
+      focusIndex(j);
       return;
     }
   }
 }
 
 function onKeydown(i: number, ev: KeyboardEvent): void {
-  if (ev.key === 'Backspace' && !digits.value[i]) {
-    for (let j = i - 1; j >= 0; j--) {
-      if (!isLocked(j)) {
-        inputs.value[j]?.focus();
-        break;
+  switch (ev.key) {
+    case 'Backspace':
+      if (!digits.value[i]) {
+        ev.preventDefault();
+        focusPrevUnlocked(i);
       }
-    }
-  } else if (ev.key === 'Enter' && complete.value) {
-    submit();
+      break;
+    case 'ArrowLeft':
+      ev.preventDefault();
+      focusPrevUnlocked(i);
+      break;
+    case 'ArrowRight':
+      ev.preventDefault();
+      focusNextUnlocked(i);
+      break;
+    case 'ArrowUp':
+      // Increment the current digit (wraps 9 -> 0).
+      if (!isLocked(i)) {
+        ev.preventDefault();
+        digits.value[i] = ((digits.value[i] ?? -1) + 1 + 10) % 10;
+        sound.play('key');
+      }
+      break;
+    case 'ArrowDown':
+      if (!isLocked(i)) {
+        ev.preventDefault();
+        digits.value[i] = ((digits.value[i] ?? 10) - 1 + 10) % 10;
+        sound.play('key');
+      }
+      break;
+    case 'Enter':
+      if (complete.value) submit();
+      break;
   }
 }
 
@@ -72,7 +126,9 @@ function submit(): void {
 defineExpose({
   reset(): void {
     buildDigits();
+    focusFirstAvailable();
   },
+  focusFirstAvailable,
 });
 </script>
 

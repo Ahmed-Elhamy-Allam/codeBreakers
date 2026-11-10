@@ -63,7 +63,8 @@ interface GameStoreState {
   players: Record<string, Player>;
   teams: Record<string, Team>;
   boards: Record<string, PlayerBoard>;
-  sharedPool: number;
+  /** Per-team pool (seconds or tries). Banked value at last round start. */
+  teamPools: Record<string, number>;
   roundStartedAt: number | null;
   finishOrder: string[];
   leaderboard: LeaderboardRow[];
@@ -84,7 +85,7 @@ export const useGameStore = defineStore('game', {
     players: {},
     teams: {},
     boards: {},
-    sharedPool: 0,
+    teamPools: {},
     roundStartedAt: null,
     finishOrder: [],
     leaderboard: [],
@@ -116,13 +117,24 @@ export const useGameStore = defineStore('game', {
       return (teamId: TeamId): Player[] =>
         Object.values(state.players).filter((p) => p.teamId === teamId);
     },
-    /** Seconds (time mode) or tries (tries mode) remaining, live. */
-    remaining(state): number {
-      void state.elapsedTick; // dependency to re-run each tick
-      if (state.config.mode === 'tries') return state.sharedPool;
-      if (state.phase !== 'playing' || state.roundStartedAt == null) return state.sharedPool;
-      const elapsed = Math.floor((Date.now() - state.roundStartedAt) / 1000);
-      return Math.max(0, state.sharedPool - elapsed);
+    localTeamId(state): TeamId | undefined {
+      return state.players[state.localPlayerId]?.teamId;
+    },
+    /** Live remaining pool for a specific team (seconds or tries). */
+    teamRemaining(state) {
+      return (teamId: TeamId): number => {
+        void state.elapsedTick; // dependency so it re-runs each tick
+        const banked = state.teamPools[teamId] ?? 0;
+        if (state.config.mode === 'tries') return banked;
+        if (state.phase !== 'playing' || state.roundStartedAt == null) return banked;
+        const elapsed = Math.floor((Date.now() - state.roundStartedAt) / 1000);
+        return Math.max(0, banked - elapsed);
+      };
+    },
+    /** Live remaining pool for the local player's team. */
+    remaining(): number {
+      const tid = this.localTeamId;
+      return tid ? this.teamRemaining(tid) : 0;
     },
     sortedTeamsByScore(state): Team[] {
       return Object.values(state.teams).sort((a, b) => b.score - a.score);
@@ -285,7 +297,7 @@ export const useGameStore = defineStore('game', {
         players: this.players,
         teams: this.teams,
         boards: this.boards,
-        sharedPool: this.sharedPool,
+        teamPools: this.teamPools,
         roundStartedAt: this.roundStartedAt,
         finishOrder: this.finishOrder,
       };
@@ -299,7 +311,7 @@ export const useGameStore = defineStore('game', {
       this.players = s.players;
       this.teams = s.teams;
       this.boards = s.boards;
-      this.sharedPool = s.sharedPool;
+      this.teamPools = s.teamPools;
       this.roundStartedAt = s.roundStartedAt;
       this.finishOrder = s.finishOrder;
     },
@@ -309,15 +321,31 @@ export const useGameStore = defineStore('game', {
     async startGame(): Promise<void> {
       if (!this.isHost) return;
       this.round = 1;
-      this.sharedPool =
+      // Give every active team its own full pool.
+      const initial =
         this.config.mode === 'time' ? this.config.totalTimeSeconds : this.config.totalTries;
+      const pools: Record<string, number> = {};
+      for (const id of TEAM_ORDER.slice(0, this.config.teamCount)) pools[id] = initial;
+      this.teamPools = pools;
       await this.beginRound();
       sound.play('countdown');
+    },
+
+    /**
+     * Bank each team's live remaining pool before (re)starting the clock, so
+     * time-mode leftovers roll over into the next round.
+     */
+    bankTeamPools(): void {
+      if (this.config.mode !== 'time' || this.roundStartedAt == null) return;
+      for (const id of Object.keys(this.teamPools)) {
+        this.teamPools[id] = this.teamRemaining(id as TeamId);
+      }
     },
 
     /** Host sets up boards + fresh server codes for everyone, then starts clock. */
     async beginRound(): Promise<void> {
       if (!this.isHost) return;
+      this.bankTeamPools();
       this.phase = 'playing';
       this.finishOrder = [];
       this.boards = {};
@@ -367,10 +395,13 @@ export const useGameStore = defineStore('game', {
           sound.play('lockIn');
         }
 
-        // Consume a try from the shared pool (tries mode).
+        // Consume a try from the local TEAM's pool (tries mode).
         if (this.config.mode === 'tries') {
-          this.sharedPool = Math.max(0, this.sharedPool - 1);
-          await this.broadcastPool(board.playerId);
+          const tid = this.localTeamId;
+          if (tid) {
+            this.teamPools[tid] = Math.max(0, (this.teamPools[tid] ?? 0) - 1);
+            await this.broadcastPool(tid);
+          }
         }
 
         // Broadcast the guess (feedback only, no secret).
@@ -441,11 +472,10 @@ export const useGameStore = defineStore('game', {
       }
     },
 
-    broadcastPool(teamId?: string): Promise<void> {
-      const player = this.players[this.localPlayerId];
+    broadcastPool(teamId: TeamId): Promise<void> {
       return this.broadcast({
         type: 'poolUpdated',
-        payload: { sharedPool: this.sharedPool, teamId: (teamId as TeamId) ?? player?.teamId },
+        payload: { pool: this.teamPools[teamId] ?? 0, teamId },
         senderId: this.localPlayerId,
         ts: Date.now(),
       });
@@ -455,7 +485,8 @@ export const useGameStore = defineStore('game', {
 
     async buyHint(): Promise<string | null> {
       const board = this.boards[this.localPlayerId];
-      if (!board || board.status !== 'cracking') return null;
+      const tid = this.localTeamId;
+      if (!board || board.status !== 'cracking' || !tid) return null;
       if (this.remaining <= this.config.hintCost) {
         this.error = 'Not enough time/tries for a hint.';
         return null;
@@ -468,17 +499,26 @@ export const useGameStore = defineStore('game', {
         });
         board.hintsUsed.push(hint);
 
-        // Deduct the cost from the shared pool.
-        if (this.config.mode === 'tries') {
-          this.sharedPool = Math.max(0, this.sharedPool - this.config.hintCost);
+        // Deduct the cost from THIS TEAM's pool only. In time mode we lower the
+        // banked value and re-anchor roundStartedAt so the live countdown stays
+        // continuous while absorbing the penalty.
+        if (this.config.mode === 'time') {
+          const liveRemaining = this.teamRemaining(tid);
+          this.teamPools[tid] = Math.max(0, liveRemaining - this.config.hintCost);
+          // Re-bank all teams against a fresh anchor to keep others' time intact.
+          const now = Date.now();
+          for (const other of Object.keys(this.teamPools)) {
+            if (other !== tid) this.teamPools[other] = this.teamRemaining(other as TeamId);
+          }
+          this.roundStartedAt = now;
         } else {
-          // Time mode: shift round start so elapsed effectively grows.
-          this.sharedPool = Math.max(0, this.sharedPool - this.config.hintCost);
+          this.teamPools[tid] = Math.max(0, (this.teamPools[tid] ?? 0) - this.config.hintCost);
         }
+
         sound.play('hint');
         await this.broadcast({
           type: 'hintPurchased',
-          payload: { playerId: this.localPlayerId, hint, newPool: this.sharedPool },
+          payload: { playerId: this.localPlayerId, teamId: tid, hint, newPool: this.teamPools[tid] },
           senderId: this.localPlayerId,
           ts: Date.now(),
         });
@@ -496,25 +536,32 @@ export const useGameStore = defineStore('game', {
       const player = this.players[this.localPlayerId];
       if (!player) return;
       const step = this.config.mode === 'time' ? 60 : 2;
+      const myTeam = player.teamId;
+      // Re-anchor time so pool edits apply cleanly to live countdowns.
+      if (this.config.mode === 'time') this.bankTeamPools();
 
       switch (type) {
         case 'teamBoost':
-          this.sharedPool += step;
+          this.teamPools[myTeam] = (this.teamPools[myTeam] ?? 0) + step;
           sound.play('boost');
           break;
         case 'sabotage':
-          this.sharedPool = Math.max(0, this.sharedPool - step);
+          for (const id of Object.keys(this.teamPools)) {
+            if (id !== myTeam) this.teamPools[id] = Math.max(0, (this.teamPools[id] ?? 0) - step);
+          }
           sound.play('sabotage');
           break;
         case 'difficultyUp':
           sound.play('sabotage');
-          await this.applyResizeToEnemies(+1);
+          // Update enemy boards' displayed length locally on this client.
+          this.applyResizeToEnemiesLocal(this.localPlayerId, +1);
           break;
         case 'mercy':
           sound.play('boost');
-          await this.applyResize(targetPlayerId ?? this.localPlayerId, -1);
+          this.applyResizeLocal(targetPlayerId ?? this.localPlayerId, -1);
           break;
       }
+      if (this.config.mode === 'time') this.roundStartedAt = Date.now();
 
       await this.broadcast({
         type: 'boosterChosen',
@@ -522,32 +569,75 @@ export const useGameStore = defineStore('game', {
         senderId: this.localPlayerId,
         ts: Date.now(),
       });
-      await this.broadcastPool();
+
+      // If this resize affects OUR own code (e.g. Mercy on self), update Redis.
+      await this.resizeOwnCodeIfTargeted(this.localPlayerId, type, targetPlayerId);
+      // Push every team's pool so all clients converge.
+      for (const id of Object.keys(this.teamPools)) {
+        await this.broadcastPool(id as TeamId);
+      }
       this.maybeAdvanceRound();
     },
 
-    async applyResize(playerId: string, delta: number): Promise<void> {
+    /**
+     * Update a board's displayed code length locally (clamped). Returns the
+     * new length, or null if no change. Does NOT touch Redis — the Redis
+     * secret is owned and resized by that player's OWN client (see
+     * `resizeOwnCodeIfTargeted`) so the server secret and UI stay in sync.
+     */
+    applyResizeLocal(playerId: string, delta: number): number | null {
       const board = this.boards[playerId];
-      if (!board) return;
+      if (!board) return null;
       const newLength = Math.max(3, Math.min(8, board.codeLength + delta));
-      if (newLength === board.codeLength) return;
+      if (newLength === board.codeLength) return null;
       board.codeLength = newLength;
-      if (playerId === this.localPlayerId) {
-        await api.resizeCode({
-          roomCode: this.roomCode,
-          playerId,
-          round: this.round,
-          newLength,
-        });
+      // Drop any locked positions that fall outside a shrunken code.
+      board.lockedPositions = board.lockedPositions.filter((p) => p < newLength);
+      return newLength;
+    },
+
+    /** Local display update for all enemy boards (every client runs this). */
+    applyResizeToEnemiesLocal(actingPlayerId: string, delta: number): void {
+      const actor = this.players[actingPlayerId];
+      if (!actor) return;
+      for (const p of Object.values(this.players)) {
+        if (p.teamId !== actor.teamId) this.applyResizeLocal(p.id, delta);
       }
     },
 
-    async applyResizeToEnemies(delta: number): Promise<void> {
+    /**
+     * If THIS client's player is affected by a resize booster, regenerate its
+     * own secret code in Redis at the new length. Only the owning client does
+     * this, so the server secret always matches what the player sees.
+     */
+    async resizeOwnCodeIfTargeted(
+      actingPlayerId: string,
+      type: BoosterType,
+      targetPlayerId: string | undefined,
+    ): Promise<void> {
       const me = this.players[this.localPlayerId];
-      if (!me) return;
-      for (const p of Object.values(this.players)) {
-        if (p.teamId !== me.teamId) await this.applyResize(p.id, delta);
+      const actor = this.players[actingPlayerId];
+      if (!me || !actor) return;
+
+      let affectsMe = false;
+      if (type === 'difficultyUp') {
+        // Enemies of the actor each gain a digit.
+        affectsMe = me.teamId !== actor.teamId;
+      } else if (type === 'mercy') {
+        // Target (or the actor themselves) loses a digit.
+        affectsMe = (targetPlayerId ?? actingPlayerId) === this.localPlayerId;
       }
+      if (!affectsMe) return;
+
+      const myBoard = this.boards[this.localPlayerId];
+      if (!myBoard) return;
+      // Local codeLength was already updated by the display pass; mirror it to Redis.
+      await api.resizeCode({
+        roomCode: this.roomCode,
+        playerId: this.localPlayerId,
+        round: this.round,
+        newLength: myBoard.codeLength,
+      });
     },
 
     // ---------- Round advancement ----------
@@ -694,17 +784,35 @@ export const useGameStore = defineStore('game', {
           break;
 
         case 'poolUpdated':
-          if (e.senderId !== this.localPlayerId) this.sharedPool = e.payload.sharedPool;
+          if (e.senderId !== this.localPlayerId) {
+            this.teamPools[e.payload.teamId] = e.payload.pool;
+            // Re-anchor time so remote pool edits reflect in live countdown.
+            if (this.config.mode === 'time') this.roundStartedAt = Date.now();
+          }
           break;
 
         case 'hintPurchased':
-          if (e.senderId !== this.localPlayerId) this.sharedPool = e.payload.newPool;
+          if (e.senderId !== this.localPlayerId) {
+            this.teamPools[e.payload.teamId] = e.payload.newPool;
+            if (this.config.mode === 'time') this.roundStartedAt = Date.now();
+            // Surface the teammate's hint on their board log.
+            const hb = this.boards[e.payload.playerId];
+            if (hb && !hb.hintsUsed.includes(e.payload.hint)) hb.hintsUsed.push(e.payload.hint);
+          }
           break;
 
         case 'boosterChosen':
           if (e.senderId !== this.localPlayerId) {
-            // Non-authoritative clients just rely on the following poolUpdated /
-            // stateSync; resize effects on own board handled via stateSync.
+            const { playerId: actorId, booster, targetPlayerId } = e.payload;
+            // Mirror the resize's DISPLAY effect on this client's boards.
+            if (booster === 'difficultyUp') {
+              this.applyResizeToEnemiesLocal(actorId, +1);
+            } else if (booster === 'mercy') {
+              this.applyResizeLocal(targetPlayerId ?? actorId, -1);
+            }
+            // If OUR own code was resized, regenerate it in Redis so the
+            // server secret matches our new number of slots.
+            void this.resizeOwnCodeIfTargeted(actorId, booster, targetPlayerId);
           }
           break;
 
@@ -718,13 +826,14 @@ export const useGameStore = defineStore('game', {
 
     tick(): void {
       this.elapsedTick++;
-      if (this.phase === 'playing' && this.config.mode === 'time' && this.remaining <= 0) {
-        // Time's up — fail any still-cracking players.
-        for (const b of Object.values(this.boards)) {
-          if (b.status === 'cracking') this.markFailed(b.playerId);
-        }
-        if (this.isHost) this.maybeAdvanceRound();
+      if (this.phase !== 'playing' || this.config.mode !== 'time') return;
+      // Fail still-cracking players whose TEAM pool has run out.
+      for (const b of Object.values(this.boards)) {
+        if (b.status !== 'cracking') continue;
+        const p = this.players[b.playerId];
+        if (p && this.teamRemaining(p.teamId) <= 0) this.markFailed(b.playerId);
       }
+      if (this.isHost) this.maybeAdvanceRound();
     },
 
     reset(): void {
