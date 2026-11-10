@@ -1,7 +1,16 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import { sound } from '@/services/SoundService';
 import SoundToggle from '@/components/SoundToggle.vue';
+import HowToPlayModal from '@/components/HowToPlayModal.vue';
+
+const showHelp = ref(false);
+
+function openHelp(): void {
+  sound.init();
+  sound.play('click');
+  showHelp.value = true;
+}
 
 // Unlock audio on first user interaction (browser autoplay policy).
 onMounted(() => {
@@ -22,7 +31,17 @@ onMounted(() => {
         <span class="neon-text-green">&gt;_</span>
         <span class="neon-text-cyan">CODE</span><span class="neon-text-magenta">BREAKERS</span>
       </RouterLink>
-      <SoundToggle />
+      <div class="flex items-center gap-2">
+        <button
+          class="panel flex items-center gap-2 px-3 py-2 text-sm transition hover:border-neon-cyan"
+          title="How to play"
+          @click="openHelp"
+        >
+          <span class="text-lg">📖</span>
+          <span class="hidden sm:inline neon-text-cyan">HOW TO PLAY</span>
+        </button>
+        <SoundToggle />
+      </div>
     </header>
     <main class="px-4 pb-12">
       <RouterView v-slot="{ Component }">
@@ -31,6 +50,7 @@ onMounted(() => {
         </Transition>
       </RouterView>
     </main>
+    <HowToPlayModal :open="showHelp" @close="showHelp = false" />
   </div>
 </template>
 

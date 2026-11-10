@@ -41,6 +41,22 @@ export const TEAM_META: Record<TeamId, TeamMeta> = {
 // Players & teams
 // ------------------------------------------------------------------
 
+/** Cumulative per-player stats across all rounds (for the final standings). */
+export interface PlayerStats {
+  /** Total guesses made across all rounds. */
+  totalTries: number;
+  /** Total seconds spent on rounds the player solved. */
+  totalSolveTime: number;
+  /** How many of the rounds this player solved. */
+  roundsSolved: number;
+  /** Total hints purchased across all rounds. */
+  hintsUsed: number;
+}
+
+export function emptyStats(): PlayerStats {
+  return { totalTries: 0, totalSolveTime: 0, roundsSolved: 0, hintsUsed: 0 };
+}
+
 export interface Player {
   id: string; // stable client id (also used as Ably clientId)
   name: string;
@@ -49,6 +65,8 @@ export interface Player {
   connected: boolean;
   /** Score accumulated across all finished rounds. */
   totalScore: number;
+  /** Cumulative stats across rounds. */
+  stats: PlayerStats;
 }
 
 export interface Team {
@@ -207,6 +225,17 @@ export interface GameState {
   finishOrder: string[];
 }
 
+export interface LeaderboardPlayerRow {
+  playerId: string;
+  name: string;
+  isHost: boolean;
+  score: number;
+  totalTries: number;
+  totalSolveTime: number;
+  roundsSolved: number;
+  hintsUsed: number;
+}
+
 export interface LeaderboardRow {
   teamId: TeamId;
   teamName: string;
@@ -214,6 +243,8 @@ export interface LeaderboardRow {
   totalTimeConsumed: number;
   totalTries: number;
   rank: number;
+  /** Per-player breakdown, best scorer first. */
+  players: LeaderboardPlayerRow[];
 }
 
 // ------------------------------------------------------------------

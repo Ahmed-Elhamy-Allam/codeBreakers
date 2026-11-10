@@ -13,11 +13,13 @@ import {
   TEAM_META,
   TEAM_ORDER,
   TOTAL_ROUNDS,
+  emptyStats,
   type BoosterType,
   type GameEvent,
   type GamePhase,
   type GameState,
   type GuessResult,
+  type LeaderboardPlayerRow,
   type LeaderboardRow,
   type Player,
   type PlayerBoard,
@@ -161,6 +163,7 @@ export const useGameStore = defineStore('game', {
           isHost: true,
           connected: true,
           totalScore: 0,
+          stats: emptyStats(),
         };
         this.players = { [player.id]: player };
         this.teams.alpha.memberIds = [player.id];
@@ -189,6 +192,7 @@ export const useGameStore = defineStore('game', {
           isHost: false,
           connected: true,
           totalScore: 0,
+          stats: emptyStats(),
         };
         this.players = { [player.id]: player };
 
@@ -646,9 +650,30 @@ export const useGameStore = defineStore('game', {
       return Object.values(this.boards).every((b) => b.status !== 'cracking');
     },
 
+    /**
+     * Fold the just-finished round's per-board data into each player's
+     * cumulative stats. Host-only; runs once per round before boards reset.
+     */
+    foldRoundStats(): void {
+      for (const board of Object.values(this.boards)) {
+        const p = this.players[board.playerId];
+        if (!p) continue;
+        p.stats.totalTries += board.attemptsUsed;
+        p.stats.hintsUsed += board.hintsUsed.length;
+        if (board.solvedAt != null && this.roundStartedAt != null) {
+          p.stats.roundsSolved += 1;
+          p.stats.totalSolveTime += Math.max(
+            0,
+            Math.round((board.solvedAt - this.roundStartedAt) / 1000),
+          );
+        }
+      }
+    },
+
     maybeAdvanceRound(): void {
       if (!this.isHost) return;
       if (!this.allPlayersDone()) return;
+      this.foldRoundStats();
       if (this.round >= TOTAL_ROUNDS) {
         void this.finishGame();
       } else {
@@ -686,22 +711,28 @@ export const useGameStore = defineStore('game', {
     buildLeaderboard(): LeaderboardRow[] {
       const rows: LeaderboardRow[] = Object.values(this.teams).map((team) => {
         const members = Object.values(this.players).filter((p) => p.teamId === team.id);
-        const boards = members
-          .map((m) => this.boards[m.id])
-          .filter((b): b is PlayerBoard => Boolean(b));
-        const totalTries = boards.reduce((a, b) => a + b.attemptsUsed, 0);
-        const solved = boards.filter((b) => b.solvedAt != null);
-        const totalTime =
-          solved.length && this.roundStartedAt
-            ? solved.reduce((a, b) => a + ((b.solvedAt ?? 0) - (this.roundStartedAt ?? 0)) / 1000, 0)
-            : 0;
+
+        const playerRows: LeaderboardPlayerRow[] = members
+          .map((m) => ({
+            playerId: m.id,
+            name: m.name,
+            isHost: m.isHost,
+            score: m.totalScore,
+            totalTries: m.stats.totalTries,
+            totalSolveTime: m.stats.totalSolveTime,
+            roundsSolved: m.stats.roundsSolved,
+            hintsUsed: m.stats.hintsUsed,
+          }))
+          .sort((a, b) => b.score - a.score);
+
         return {
           teamId: team.id,
           teamName: team.name,
           score: team.score,
-          totalTimeConsumed: Math.round(totalTime),
-          totalTries,
+          totalTimeConsumed: playerRows.reduce((a, p) => a + p.totalSolveTime, 0),
+          totalTries: playerRows.reduce((a, p) => a + p.totalTries, 0),
           rank: 0,
+          players: playerRows,
         };
       });
       rows.sort((a, b) => b.score - a.score);
