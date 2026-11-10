@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue';
 import { sound } from '@/services/SoundService';
 import SoundToggle from '@/components/SoundToggle.vue';
 import HowToPlayModal from '@/components/HowToPlayModal.vue';
+import NotificationCenter from '@/components/NotificationCenter.vue';
 
 const showHelp = ref(false);
 
@@ -51,6 +52,7 @@ onMounted(() => {
       </RouterView>
     </main>
     <HowToPlayModal :open="showHelp" @close="showHelp = false" />
+    <NotificationCenter />
   </div>
 </template>
 

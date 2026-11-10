@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import confetti from 'canvas-confetti';
 import { useGameStore } from '@/stores/gameStore';
 import { TOTAL_ROUNDS } from '@/types/game';
 import PoolMeter from '@/components/PoolMeter.vue';
@@ -9,6 +10,7 @@ import GuessHistory from '@/components/GuessHistory.vue';
 import CodeInput from '@/components/CodeInput.vue';
 import BoosterModal from '@/components/BoosterModal.vue';
 import Leaderboard from '@/components/Leaderboard.vue';
+import ChatPanel from '@/components/ChatPanel.vue';
 
 const router = useRouter();
 const store = useGameStore();
@@ -46,6 +48,18 @@ const lockedValues = computed<Record<number, number>>(() => {
 });
 
 const myStatus = computed(() => board.value?.status ?? 'cracking');
+
+// Celebrate when the local player solves their code.
+watch(myStatus, (now, was) => {
+  if (now === 'solved' && was !== 'solved') {
+    confetti({
+      particleCount: 120,
+      spread: 90,
+      origin: { y: 0.6 },
+      colors: ['#39ff14', '#00f0ff', '#ff00e5', '#faff00'],
+    });
+  }
+});
 
 const canGuess = computed(
   () => store.phase === 'playing' && myStatus.value === 'cracking' && store.remaining > 0,
@@ -159,4 +173,5 @@ const hints = computed(() => board.value?.hintsUsed ?? []);
   </div>
 
   <BoosterModal />
+  <ChatPanel />
 </template>

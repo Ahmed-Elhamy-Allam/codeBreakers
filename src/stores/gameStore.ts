@@ -15,7 +15,9 @@ import {
   TOTAL_ROUNDS,
   emptyStats,
   type BoosterType,
+  type ChatMessage,
   type GameEvent,
+  type GameNotification,
   type GamePhase,
   type GameState,
   type GuessResult,
@@ -75,6 +77,12 @@ interface GameStoreState {
   // UI state
   showBoosterModal: boolean;
   elapsedTick: number; // forces reactive timer recompute
+  // Notifications & chat
+  notifications: GameNotification[];
+  chat: ChatMessage[];
+  unreadChat: number;
+  /** Transient floating pool-delta labels keyed by teamId. */
+  poolFlash: Record<string, { id: string; delta: number; ts: number } | undefined>;
 }
 
 export const useGameStore = defineStore('game', {
@@ -95,6 +103,10 @@ export const useGameStore = defineStore('game', {
     error: null,
     showBoosterModal: false,
     elapsedTick: 0,
+    notifications: [],
+    chat: [],
+    unreadChat: 0,
+    poolFlash: {},
   }),
 
   getters: {
@@ -550,12 +562,29 @@ export const useGameStore = defineStore('game', {
       switch (type) {
         case 'teamBoost':
           this.teamPools[myTeam] = (this.teamPools[myTeam] ?? 0) + step;
+          this.flashPool(myTeam, +step);
+          this.pushNotification({
+            kind: 'boost',
+            title: 'TEAM BOOST!',
+            message: `+${step}${this.config.mode === 'time' ? 's' : ' tries'} to your team.`,
+            icon: '⚡',
+            color: 'green',
+            banner: true,
+          });
           sound.play('boost');
           break;
         case 'sabotage':
           for (const id of Object.keys(this.teamPools)) {
             if (id !== myTeam) this.teamPools[id] = Math.max(0, (this.teamPools[id] ?? 0) - step);
           }
+          this.pushNotification({
+            kind: 'sabotage',
+            title: 'SABOTAGE DEPLOYED',
+            message: `−${step}${this.config.mode === 'time' ? 's' : ' tries'} from every enemy team.`,
+            icon: '💣',
+            color: 'red',
+            banner: true,
+          });
           sound.play('sabotage');
           break;
         case 'difficultyUp':
@@ -812,6 +841,16 @@ export const useGameStore = defineStore('game', {
             if (p) {
               p.totalScore += e.payload.roundScore;
               if (this.teams[p.teamId]) this.teams[p.teamId].score += e.payload.roundScore;
+              const me = this.players[this.localPlayerId];
+              const sameTeam = me && p.teamId === me.teamId;
+              this.pushNotification({
+                kind: 'solved',
+                title: sameTeam ? 'TEAMMATE CRACKED IT!' : 'CODE CRACKED',
+                message: `${p.name} solved their code (+${e.payload.roundScore}).`,
+                icon: sameTeam ? '🎉' : '🏁',
+                color: sameTeam ? 'green' : 'yellow',
+                banner: false,
+              });
             }
           }
           if (this.isHost) this.maybeAdvanceRound();
@@ -819,9 +858,16 @@ export const useGameStore = defineStore('game', {
 
         case 'poolUpdated':
           if (e.senderId !== this.localPlayerId) {
+            const prev = this.teamPools[e.payload.teamId] ?? e.payload.pool;
             this.teamPools[e.payload.teamId] = e.payload.pool;
             // Re-anchor time so remote pool edits reflect in live countdown.
             if (this.config.mode === 'time') this.roundStartedAt = Date.now();
+            // Flash a delta on that team's meter (tries-mode guesses excluded:
+            // -1 drip would be noisy; only flash meaningful jumps).
+            const delta = Math.round(e.payload.pool - prev);
+            if (Math.abs(delta) >= (this.config.mode === 'time' ? 5 : 2)) {
+              this.flashPool(e.payload.teamId, delta);
+            }
           }
           break;
 
@@ -832,6 +878,19 @@ export const useGameStore = defineStore('game', {
             // Surface the teammate's hint on their board log.
             const hb = this.boards[e.payload.playerId];
             if (hb && !hb.hintsUsed.includes(e.payload.hint)) hb.hintsUsed.push(e.payload.hint);
+            const hp = this.players[e.payload.playerId];
+            const me = this.players[this.localPlayerId];
+            if (hp && me && hp.teamId === me.teamId) {
+              this.flashPool(e.payload.teamId, -this.config.hintCost);
+              this.pushNotification({
+                kind: 'hint',
+                title: 'HINT UNLOCKED',
+                message: `${hp.name}: ${e.payload.hint}`,
+                icon: '🧩',
+                color: 'yellow',
+                banner: false,
+              });
+            }
           }
           break;
 
@@ -847,7 +906,13 @@ export const useGameStore = defineStore('game', {
             // If OUR own code was resized, regenerate it in Redis so the
             // server secret matches our new number of slots.
             void this.resizeOwnCodeIfTargeted(actorId, booster, targetPlayerId);
+            // Raise an animated notification relative to this client.
+            this.notifyBooster(actorId, booster, targetPlayerId);
           }
+          break;
+
+        case 'chatMessage':
+          if (e.senderId !== this.localPlayerId) this.receiveChat(e.payload.message);
           break;
 
         case 'gameFinished':
@@ -856,6 +921,141 @@ export const useGameStore = defineStore('game', {
           if (e.senderId !== this.localPlayerId) this.applySnapshot(e.payload.state);
           break;
       }
+    },
+
+    // ---------- Notifications ----------
+
+    pushNotification(n: Omit<GameNotification, 'id' | 'ts'>): void {
+      const note: GameNotification = {
+        ...n,
+        id: Math.random().toString(36).slice(2),
+        ts: Date.now(),
+      };
+      this.notifications.push(note);
+      // Auto-expire: banners linger a touch longer than toasts.
+      const ttl = note.banner ? 3800 : 2800;
+      window.setTimeout(() => this.dismissNotification(note.id), ttl);
+    },
+
+    dismissNotification(id: string): void {
+      this.notifications = this.notifications.filter((n) => n.id !== id);
+    },
+
+    /** Flash a floating +/- pool delta label on a team's meter. */
+    flashPool(teamId: TeamId, delta: number): void {
+      if (delta === 0) return;
+      const id = Math.random().toString(36).slice(2);
+      this.poolFlash[teamId] = { id, delta, ts: Date.now() };
+      window.setTimeout(() => {
+        if (this.poolFlash[teamId]?.id === id) this.poolFlash[teamId] = undefined;
+      }, 1600);
+    },
+
+    /**
+     * Derive and raise a notification from a booster, relative to THIS client.
+     * amount = pool step used, in seconds or tries.
+     */
+    notifyBooster(actorId: string, booster: BoosterType, targetPlayerId: string | undefined): void {
+      const me = this.players[this.localPlayerId];
+      const actor = this.players[actorId];
+      if (!me || !actor) return;
+      const sameTeam = actor.teamId === me.teamId;
+      const step = this.config.mode === 'time' ? 60 : 2;
+      const unit = this.config.mode === 'time' ? 's' : ' tries';
+      const actorTeam = this.teams[actor.teamId]?.name ?? 'A team';
+
+      switch (booster) {
+        case 'teamBoost':
+          if (sameTeam) {
+            this.flashPool(me.teamId, +step);
+            this.pushNotification({
+              kind: 'boost',
+              title: 'TEAM BOOST!',
+              message: `${actor.name} added +${step}${unit} to your team.`,
+              icon: '⚡',
+              color: 'green',
+              banner: true,
+            });
+            sound.play('boost');
+          }
+          break;
+        case 'sabotage':
+          if (!sameTeam) {
+            this.flashPool(me.teamId, -step);
+            this.pushNotification({
+              kind: 'sabotage',
+              title: 'SABOTAGED!',
+              message: `${actorTeam} ripped −${step}${unit} from your team!`,
+              icon: '💣',
+              color: 'red',
+              banner: true,
+            });
+            sound.play('sabotage');
+          }
+          break;
+        case 'difficultyUp':
+          if (!sameTeam) {
+            this.pushNotification({
+              kind: 'difficultyUp',
+              title: 'CODE SCRAMBLED!',
+              message: `${actorTeam} added a digit to your code. It's longer now!`,
+              icon: '🔥',
+              color: 'magenta',
+              banner: true,
+            });
+            sound.play('sabotage');
+          }
+          break;
+        case 'mercy': {
+          const target = targetPlayerId ?? actorId;
+          if (target === this.localPlayerId) {
+            this.pushNotification({
+              kind: 'mercy',
+              title: 'MERCY GRANTED',
+              message: `${actor.name} removed a digit from your code. Easier now!`,
+              icon: '🕊️',
+              color: 'cyan',
+              banner: true,
+            });
+            sound.play('boost');
+          }
+          break;
+        }
+      }
+    },
+
+    // ---------- Chat ----------
+
+    async sendChat(text: string): Promise<void> {
+      const trimmed = text.trim().slice(0, 200);
+      const me = this.players[this.localPlayerId];
+      if (!trimmed || !me) return;
+      const message: ChatMessage = {
+        id: Math.random().toString(36).slice(2),
+        playerId: me.id,
+        playerName: me.name,
+        teamId: me.teamId,
+        text: trimmed,
+        ts: Date.now(),
+      };
+      this.chat.push(message);
+      await this.broadcast({
+        type: 'chatMessage',
+        payload: { message },
+        senderId: this.localPlayerId,
+        ts: Date.now(),
+      });
+    },
+
+    receiveChat(message: ChatMessage): void {
+      if (this.chat.some((m) => m.id === message.id)) return;
+      this.chat.push(message);
+      if (this.chat.length > 200) this.chat = this.chat.slice(-200);
+      this.unreadChat += 1;
+    },
+
+    clearUnreadChat(): void {
+      this.unreadChat = 0;
     },
 
     tick(): void {

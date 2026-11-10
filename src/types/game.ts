@@ -272,7 +272,47 @@ export type GameEventType =
   | 'poolUpdated'
   | 'roundAdvanced'
   | 'gameFinished'
-  | 'hintPurchased';
+  | 'hintPurchased'
+  | 'chatMessage';
+
+// ------------------------------------------------------------------
+// Chat
+// ------------------------------------------------------------------
+
+export interface ChatMessage {
+  id: string;
+  playerId: string;
+  playerName: string;
+  teamId: TeamId;
+  text: string;
+  ts: number;
+}
+
+// ------------------------------------------------------------------
+// Client-side notifications (not synced; each client derives its own)
+// ------------------------------------------------------------------
+
+export type NotificationKind =
+  | 'sabotage' // we lost pool to an enemy
+  | 'boost' // our team gained pool
+  | 'difficultyUp' // our code grew
+  | 'mercy' // our/teammate code shrank
+  | 'solved' // someone solved
+  | 'hint' // a teammate bought a hint
+  | 'info'; // generic
+
+export interface GameNotification {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  message: string;
+  icon: string;
+  /** Tailwind neon color key for styling. */
+  color: 'green' | 'red' | 'magenta' | 'cyan' | 'yellow';
+  /** Whether this is a big center-screen banner (vs. a corner toast). */
+  banner: boolean;
+  ts: number;
+}
 
 interface BaseEvent<T extends GameEventType, P> {
   type: T;
@@ -306,6 +346,7 @@ export type HintPurchasedEvent = BaseEvent<
   'hintPurchased',
   { playerId: string; teamId: TeamId; hint: string; newPool: number }
 >;
+export type ChatMessageEvent = BaseEvent<'chatMessage', { message: ChatMessage }>;
 
 export type GameEvent =
   | StateSyncEvent
@@ -320,7 +361,8 @@ export type GameEvent =
   | PoolUpdatedEvent
   | RoundAdvancedEvent
   | GameFinishedEvent
-  | HintPurchasedEvent;
+  | HintPurchasedEvent
+  | ChatMessageEvent;
 
 // ------------------------------------------------------------------
 // Serverless API request/response contracts
