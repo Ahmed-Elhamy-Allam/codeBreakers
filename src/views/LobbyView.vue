@@ -188,6 +188,23 @@ function copyCode(): void {
               @change="pushConfig()"
             />
           </label>
+
+          <!-- Lock correct digits -->
+          <label class="flex items-center justify-between rounded-lg border border-cyber-border p-3">
+            <span>
+              <span class="neon-text-green">Lock Correct Digits</span>
+              <span class="block text-xs text-cyan-700">
+                On = correct digits lock green in place. Off = you're only told
+                <i>how many</i> are in the right spot (think harder).
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              v-model="cfg.lockCorrect"
+              class="h-5 w-5 accent-[#39ff14]"
+              @change="pushConfig()"
+            />
+          </label>
         </fieldset>
       </section>
 

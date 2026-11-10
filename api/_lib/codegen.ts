@@ -35,6 +35,7 @@ export function scoreGuess(
   secret: number[],
   guess: number[],
   priorLocked: number[],
+  lockCorrect: boolean = true,
 ): GuessResult {
   const len = secret.length;
   const feedback: SlotFeedback[] = new Array(len).fill('absent');
@@ -64,8 +65,26 @@ export function scoreGuess(
 
   const correctCount = feedback.filter((f) => f === 'correct').length;
   const presentCount = feedback.filter((f) => f === 'present').length;
+  const solved = correctCount === len;
 
-  // Cumulative locked positions (green). Once locked, always locked.
+  if (!lockCorrect) {
+    // "Think harder" mode: do NOT reveal which positions are correct — only
+    // the count. Mask per-slot feedback so the client can't read positions
+    // from the network payload, and never lock anything.
+    const masked: SlotFeedback[] = feedback.map((f) => (f === 'absent' ? 'absent' : 'present'));
+    return {
+      guess,
+      // When solved, all correct — safe to show; otherwise hide positions.
+      feedback: solved ? feedback : masked,
+      correctCount,
+      presentCount,
+      lockedPositions: [],
+      solved,
+      attemptNumber: 0, // filled by caller
+    };
+  }
+
+  // Lock mode: cumulative locked positions (green). Once locked, always locked.
   const lockedSet = new Set<number>(priorLocked);
   feedback.forEach((f, i) => {
     if (f === 'correct') lockedSet.add(i);
@@ -78,7 +97,7 @@ export function scoreGuess(
     correctCount,
     presentCount,
     lockedPositions,
-    solved: correctCount === len,
+    solved,
     attemptNumber: 0, // filled by caller
   };
 }

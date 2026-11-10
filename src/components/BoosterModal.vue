@@ -44,9 +44,9 @@ async function confirm(): Promise<void> {
   <Transition name="pop">
     <div
       v-if="show"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+      class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto overscroll-contain bg-black/80 p-4 backdrop-blur-sm"
     >
-      <div class="panel w-full max-w-2xl border-neon-green p-6 shadow-neon-green">
+      <div class="panel my-auto w-full max-w-2xl border-neon-green p-6 shadow-neon-green">
         <h2 class="mb-1 text-center font-display text-2xl font-black neon-text-green">
           CODE CRACKED! 🎉
         </h2>

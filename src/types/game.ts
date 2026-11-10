@@ -94,6 +94,13 @@ export interface RoomConfig {
   codeLength: number;
   /** Hint cost. In time mode = seconds; in tries mode = tries. */
   hintCost: number;
+  /**
+   * When true, correct digits lock green in place and can't be changed.
+   * When false (default, "think harder"), the server only reveals the COUNT
+   * of correct-in-place digits — not which positions — so nothing locks and
+   * players must keep reasoning. Mirrors the classic Mastermind feel.
+   */
+  lockCorrect: boolean;
 }
 
 export const DEFAULT_ROOM_CONFIG: RoomConfig = {
@@ -104,6 +111,7 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   hardMode: false,
   codeLength: 4,
   hintCost: 60,
+  lockCorrect: false,
 };
 
 // ------------------------------------------------------------------
@@ -335,6 +343,8 @@ export interface CreateCodeRequest {
   codeLength: number;
   hardMode: boolean;
   round: number;
+  /** Whether correct digits lock in place (stored server-side). */
+  lockCorrect: boolean;
 }
 
 export interface CreateCodeResponse {

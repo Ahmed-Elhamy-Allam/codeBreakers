@@ -361,6 +361,7 @@ export const useGameStore = defineStore('game', {
           codeLength: this.config.codeLength,
           hardMode: this.config.hardMode,
           round: this.round,
+          lockCorrect: this.config.lockCorrect,
         });
       }
       this.roundStartedAt = Date.now();
@@ -391,11 +392,13 @@ export const useGameStore = defineStore('game', {
           attemptNumber: board.attemptsUsed + 1,
         });
 
+        const prevLockedCount = board.lockedPositions.length;
         board.history.push(result);
         board.lockedPositions = result.lockedPositions;
         board.attemptsUsed += 1;
 
-        if (result.lockedPositions.length > board.lockedPositions.length - 1) {
+        // Play the lock-in chime only when a NEW position just locked green.
+        if (this.config.lockCorrect && result.lockedPositions.length > prevLockedCount) {
           sound.play('lockIn');
         }
 

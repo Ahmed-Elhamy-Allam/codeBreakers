@@ -78,6 +78,8 @@ function codeKey(roomCode: string, round: number, playerId: string): string {
 export interface StoredCode {
   digits: number[];
   hardMode: boolean;
+  /** Whether correct digits lock in place (vs. count-only feedback). */
+  lockCorrect?: boolean;
 }
 
 export async function storeSecretCode(
@@ -122,7 +124,11 @@ export async function resizeSecretCode(
   const existing = await getSecretCode(roomCode, round, playerId);
   if (!existing) return null;
   const digits = generator(newLength, existing.hardMode, existing.digits);
-  const updated: StoredCode = { digits, hardMode: existing.hardMode };
+  const updated: StoredCode = {
+    digits,
+    hardMode: existing.hardMode,
+    lockCorrect: existing.lockCorrect,
+  };
   await storeSecretCode(roomCode, round, playerId, updated);
   return updated;
 }

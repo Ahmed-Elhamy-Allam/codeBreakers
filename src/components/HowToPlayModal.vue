@@ -14,11 +14,11 @@ function close(): void {
   <Transition name="pop">
     <div
       v-if="open"
-      class="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/85 p-4 backdrop-blur-sm sm:items-center"
+      class="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto overscroll-contain bg-black/85 p-4 backdrop-blur-sm"
       @click.self="close"
     >
       <section
-        class="panel my-6 w-full max-w-3xl border-neon-cyan p-6 shadow-neon-cyan"
+        class="panel my-auto w-full max-w-3xl border-neon-cyan p-6 shadow-neon-cyan"
         role="dialog"
         aria-modal="true"
         aria-label="How to play CodeBreakers"

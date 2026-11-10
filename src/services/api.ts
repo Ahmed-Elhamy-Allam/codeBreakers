@@ -35,6 +35,7 @@ export const api = {
     codeLength: number;
     hardMode: boolean;
     round: number;
+    lockCorrect: boolean;
   }): Promise<CreateCodeResponse> {
     return post<CreateCodeResponse>('/api/create-code', args);
   },

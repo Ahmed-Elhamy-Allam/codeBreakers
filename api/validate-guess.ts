@@ -33,7 +33,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return badRequest(res, 'Guess digits must be integers 0-9');
     }
 
-    const result = scoreGuess(stored.digits, guess, lockedPositions ?? []);
+    // lockCorrect is read from the stored code (server-authoritative), not
+    // the client, so players can't request position info the host disabled.
+    const lockCorrect = stored.lockCorrect !== false;
+    const result = scoreGuess(stored.digits, guess, lockedPositions ?? [], lockCorrect);
     result.attemptNumber = attemptNumber ?? 0;
 
     sendJson(res, 200, { ok: true, result });

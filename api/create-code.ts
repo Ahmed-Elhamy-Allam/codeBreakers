@@ -13,7 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   if (req.method !== 'POST') return methodNotAllowed(res);
 
   const body = readBody<Partial<CreateCodeRequest>>(req);
-  const { roomCode, playerId, codeLength, hardMode, round } = body;
+  const { roomCode, playerId, codeLength, hardMode, round, lockCorrect } = body;
 
   if (!roomCode || !playerId || round == null) {
     return badRequest(res, 'roomCode, playerId and round are required');
@@ -23,7 +23,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     const digits = generateCode(len, Boolean(hardMode));
-    await storeSecretCode(roomCode, round, playerId, { digits, hardMode: Boolean(hardMode) });
+    await storeSecretCode(roomCode, round, playerId, {
+      digits,
+      hardMode: Boolean(hardMode),
+      lockCorrect: Boolean(lockCorrect),
+    });
     sendJson(res, 200, { ok: true, codeLength: len });
   } catch (err) {
     serverError(res, `Failed to create code: ${(err as Error).message}`);
