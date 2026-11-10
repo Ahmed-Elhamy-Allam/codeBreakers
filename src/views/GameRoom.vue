@@ -9,7 +9,6 @@ import GuessHistory from '@/components/GuessHistory.vue';
 import CodeInput from '@/components/CodeInput.vue';
 import BoosterModal from '@/components/BoosterModal.vue';
 import Leaderboard from '@/components/Leaderboard.vue';
-import ChatPanel from '@/components/ChatPanel.vue';
 
 const router = useRouter();
 const store = useGameStore();
@@ -201,5 +200,4 @@ const hints = computed(() => board.value?.hintsUsed ?? []);
   </div>
 
   <BoosterModal />
-  <ChatPanel />
 </template>

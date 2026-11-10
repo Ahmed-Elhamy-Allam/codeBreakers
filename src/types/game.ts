@@ -279,8 +279,7 @@ export type GameEventType =
   | 'poolUpdated'
   | 'roundAdvanced'
   | 'gameFinished'
-  | 'hintPurchased'
-  | 'chatMessage';
+  | 'hintPurchased';
 
 // ------------------------------------------------------------------
 // Chat
@@ -290,9 +289,12 @@ export interface ChatMessage {
   id: string;
   playerId: string;
   playerName: string;
-  teamId: TeamId;
+  /** Team color for in-game messages; absent for pre-join lobby chatters. */
+  teamId?: TeamId;
   text: string;
   ts: number;
+  /** True if sent before the player joined a room (anonymous alias). */
+  anonymous?: boolean;
 }
 
 // ------------------------------------------------------------------
@@ -353,8 +355,6 @@ export type HintPurchasedEvent = BaseEvent<
   'hintPurchased',
   { playerId: string; teamId: TeamId; hint: string; newPool: number }
 >;
-export type ChatMessageEvent = BaseEvent<'chatMessage', { message: ChatMessage }>;
-
 export type GameEvent =
   | StateSyncEvent
   | PlayerJoinedEvent
@@ -368,8 +368,7 @@ export type GameEvent =
   | PoolUpdatedEvent
   | RoundAdvancedEvent
   | GameFinishedEvent
-  | HintPurchasedEvent
-  | ChatMessageEvent;
+  | HintPurchasedEvent;
 
 // ------------------------------------------------------------------
 // Serverless API request/response contracts

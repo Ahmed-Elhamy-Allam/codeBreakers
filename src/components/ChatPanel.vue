@@ -19,6 +19,15 @@ const teamColor: Record<string, string> = {
   green: 'neon-text-green',
 };
 
+/** Our own id for chat (real player id if joined, else the stable chat id). */
+const myChatId = computed(() => store.localPlayer?.id || store.chatId);
+
+/** Name color: team color in-game, neutral cyan for anonymous chatters. */
+function nameClass(teamId?: string): string {
+  if (!teamId) return 'text-cyan-400';
+  return teamColor[TEAM_META[teamId as keyof typeof TEAM_META]?.color] ?? 'text-cyan-400';
+}
+
 function scrollToBottom(): void {
   void nextTick(() => {
     if (listRef.value) listRef.value.scrollTop = listRef.value.scrollHeight;
@@ -77,7 +86,12 @@ function fmtTime(ts: number): string {
       class="panel fixed bottom-20 left-4 z-[65] flex h-[60vh] max-h-[460px] w-[90vw] max-w-sm flex-col border-neon-cyan p-0 shadow-neon-cyan"
     >
       <header class="flex items-center justify-between border-b border-cyber-border px-4 py-3">
-        <h3 class="font-display font-bold neon-text-cyan">💬 Game Chat</h3>
+        <div>
+          <h3 class="font-display font-bold neon-text-cyan">💬 Chat</h3>
+          <p class="text-[10px] text-cyan-700">
+            you're <span class="text-cyan-400">{{ store.chatDisplayName() }}</span>
+          </p>
+        </div>
         <button class="text-cyan-500 hover:text-neon-red" aria-label="Close chat" @click="toggle">
           ✕
         </button>
@@ -91,15 +105,16 @@ function fmtTime(ts: number): string {
           v-for="m in messages"
           :key="m.id"
           class="text-sm"
-          :class="m.playerId === store.localPlayerId ? 'text-right' : ''"
+          :class="m.playerId === myChatId ? 'text-right' : ''"
         >
           <div
             class="inline-block max-w-[85%] rounded-lg border border-cyber-border bg-cyber-bg/70 px-3 py-2 text-left"
           >
             <div class="mb-0.5 flex items-center gap-2">
-              <span class="text-xs font-bold" :class="teamColor[TEAM_META[m.teamId].color]">
+              <span class="text-xs font-bold" :class="nameClass(m.teamId)">
                 {{ m.playerName }}
-                <span v-if="m.playerId === store.localPlayerId" class="text-cyan-700">(you)</span>
+                <span v-if="m.anonymous" class="text-cyan-800" title="hasn't joined a room yet">·guest</span>
+                <span v-if="m.playerId === myChatId" class="text-cyan-700">(you)</span>
               </span>
               <span class="text-[10px] text-cyan-800">{{ fmtTime(m.ts) }}</span>
             </div>

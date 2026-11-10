@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { sound } from '@/services/SoundService';
+import { useGameStore } from '@/stores/gameStore';
 import SoundToggle from '@/components/SoundToggle.vue';
 import HowToPlayModal from '@/components/HowToPlayModal.vue';
 import NotificationCenter from '@/components/NotificationCenter.vue';
+import ChatPanel from '@/components/ChatPanel.vue';
 
+const store = useGameStore();
 const showHelp = ref(false);
 
 function openHelp(): void {
@@ -22,6 +25,9 @@ onMounted(() => {
   };
   window.addEventListener('pointerdown', unlock);
   window.addEventListener('keydown', unlock);
+
+  // Global chat is available everywhere — connect on app start.
+  void store.initChat();
 });
 </script>
 
@@ -53,6 +59,7 @@ onMounted(() => {
     </main>
     <HowToPlayModal :open="showHelp" @close="showHelp = false" />
     <NotificationCenter />
+    <ChatPanel />
   </div>
 </template>
 

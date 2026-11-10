@@ -12,6 +12,9 @@ interface Body {
   roomCode?: string;
 }
 
+/** Shared global chat channel available to everyone, even pre-room. */
+const GLOBAL_CHAT_CHANNEL = 'cb:global:chat';
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== 'POST') return methodNotAllowed(res);
 
@@ -20,17 +23,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   const { clientId, roomCode } = readBody<Body>(req);
   if (!clientId) return badRequest(res, 'clientId is required');
-  if (!roomCode) return badRequest(res, 'roomCode is required');
 
-  const channel = `cb:room:${roomCode}`;
+  // Everyone can always use the global chat channel. A room channel is added
+  // when a roomCode is supplied (roomCode is optional for pre-room chat).
+  const ops: Ably.capabilityOp[] = ['publish', 'subscribe', 'presence'];
+  const capability: Record<string, Ably.capabilityOp[]> = {
+    [GLOBAL_CHAT_CHANNEL]: ops,
+  };
+  if (roomCode) {
+    capability[`cb:room:${roomCode}`] = ops;
+  }
 
   try {
     const rest = new Ably.Rest({ key: apiKey });
     const tokenRequest = await rest.auth.createTokenRequest({
       clientId,
-      capability: {
-        [channel]: ['publish', 'subscribe', 'presence'],
-      },
+      capability,
       ttl: 60 * 60 * 1000, // 1 hour
     });
     sendJson(res, 200, tokenRequest);

@@ -29,6 +29,7 @@ import {
   type TeamId,
 } from '@/types/game';
 import { ablyService } from '@/services/ably';
+import { chatService, randomAlias } from '@/services/chat';
 import { api } from '@/services/api';
 import { sound } from '@/services/SoundService';
 
@@ -80,6 +81,10 @@ interface GameStoreState {
   notifications: GameNotification[];
   chat: ChatMessage[];
   unreadChat: number;
+  /** Stable chat identity (persists before a room is joined). */
+  chatId: string;
+  chatAlias: string;
+  chatReady: boolean;
   /** Transient floating pool-delta labels keyed by teamId. */
   poolFlash: Record<string, { id: string; delta: number; ts: number } | undefined>;
 }
@@ -105,6 +110,9 @@ export const useGameStore = defineStore('game', {
     notifications: [],
     chat: [],
     unreadChat: 0,
+    chatId: '',
+    chatAlias: '',
+    chatReady: false,
     poolFlash: {},
   }),
 
@@ -931,10 +939,6 @@ export const useGameStore = defineStore('game', {
           }
           break;
 
-        case 'chatMessage':
-          if (e.senderId !== this.localPlayerId) this.receiveChat(e.payload.message);
-          break;
-
         case 'gameFinished':
           this.phase = 'finished';
           this.leaderboard = e.payload.leaderboard;
@@ -1044,30 +1048,53 @@ export const useGameStore = defineStore('game', {
       }
     },
 
-    // ---------- Chat ----------
+    // ---------- Chat (global channel, available everywhere) ----------
+
+    /**
+     * Connect to the global chat channel. Idempotent — safe to call on app
+     * mount and again after joining a room. Assigns a stable id + fun alias
+     * the first time so pre-join messages have a name.
+     */
+    async initChat(): Promise<void> {
+      if (!this.chatId) this.chatId = genId();
+      if (!this.chatAlias) this.chatAlias = randomAlias();
+      try {
+        await chatService.connect(this.chatId);
+        chatService.onMessage((m) => this.receiveChat(m));
+        this.chatReady = true;
+      } catch {
+        this.chatReady = false;
+      }
+    },
+
+    /** The name to show for our chat messages — real name if joined, else alias. */
+    chatDisplayName(): string {
+      const me = this.players[this.localPlayerId];
+      return me?.name || this.chatAlias || 'Anonymous';
+    },
 
     async sendChat(text: string): Promise<void> {
       const trimmed = text.trim().slice(0, 200);
+      if (!trimmed) return;
+      if (!this.chatReady) await this.initChat();
       const me = this.players[this.localPlayerId];
-      if (!trimmed || !me) return;
       const message: ChatMessage = {
         id: Math.random().toString(36).slice(2),
-        playerId: me.id,
-        playerName: me.name,
-        teamId: me.teamId,
+        playerId: me?.id || this.chatId,
+        playerName: this.chatDisplayName(),
+        teamId: me?.teamId,
         text: trimmed,
         ts: Date.now(),
+        anonymous: !me,
       };
       this.chat.push(message);
-      await this.broadcast({
-        type: 'chatMessage',
-        payload: { message },
-        senderId: this.localPlayerId,
-        ts: Date.now(),
-      });
+      if (this.chat.length > 200) this.chat = this.chat.slice(-200);
+      await chatService.publish(message);
     },
 
     receiveChat(message: ChatMessage): void {
+      // Skip our own echo (we already appended it locally).
+      if (message.playerId === (this.players[this.localPlayerId]?.id || this.chatId)) return;
       if (this.chat.some((m) => m.id === message.id)) return;
       this.chat.push(message);
       if (this.chat.length > 200) this.chat = this.chat.slice(-200);
@@ -1092,7 +1119,16 @@ export const useGameStore = defineStore('game', {
 
     reset(): void {
       void ablyService.disconnect();
+      // Keep the global chat connection alive across games; just clear room state.
+      const keepChatId = this.chatId;
+      const keepAlias = this.chatAlias;
+      const keepChat = this.chat;
+      const keepReady = this.chatReady;
       this.$reset();
+      this.chatId = keepChatId;
+      this.chatAlias = keepAlias;
+      this.chat = keepChat;
+      this.chatReady = keepReady;
     },
   },
 });
