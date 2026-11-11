@@ -1,7 +1,5 @@
 /**
- * SoundService — immersive, fully synthesized game audio via the Web Audio API.
- * No asset files, zero bundle cost, works offline. Every sound is procedurally
- * generated for a crunchy arcade / sci-fi terminal feel.
+ * Synthesized game effects and background music with shared mute/volume controls.
  */
 
 type SoundName =
@@ -23,6 +21,36 @@ class SoundServiceImpl {
   private master: GainNode | null = null;
   private _muted = false;
   private _volume = 0.6;
+  private music: HTMLAudioElement | null = null;
+
+  private resumeMusic = (): void => {
+    if (this.music && !this._muted && this.music.paused) {
+      // Autoplay may be blocked until a click or key press; retry on interaction.
+      void this.music.play().catch(() => {});
+    }
+  };
+
+  startMusic(src: string): void {
+    this.stopMusic();
+    this.music = new Audio(src);
+    this.music.loop = true;
+    this.music.volume = this._volume;
+    this.music.muted = this._muted;
+    window.addEventListener('click', this.resumeMusic);
+    window.addEventListener('keydown', this.resumeMusic);
+    this.resumeMusic();
+  }
+
+  stopMusic(): void {
+    window.removeEventListener('click', this.resumeMusic);
+    window.removeEventListener('keydown', this.resumeMusic);
+    if (this.music) {
+      this.music.pause();
+      this.music.removeAttribute('src');
+      this.music.load();
+      this.music = null;
+    }
+  }
 
   get muted(): boolean {
     return this._muted;
@@ -49,6 +77,8 @@ class SoundServiceImpl {
 
   setMuted(muted: boolean): void {
     this._muted = muted;
+    if (this.music) this.music.muted = muted;
+    if (!muted) this.resumeMusic();
     if (this.master) {
       this.master.gain.value = muted ? 0 : this._volume;
     }
@@ -61,6 +91,7 @@ class SoundServiceImpl {
 
   setVolume(v: number): void {
     this._volume = Math.max(0, Math.min(1, v));
+    if (this.music) this.music.volume = this._volume;
     if (this.master && !this._muted) this.master.gain.value = this._volume;
   }
 

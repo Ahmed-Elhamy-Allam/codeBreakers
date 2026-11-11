@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGameStore } from '@/stores/gameStore';
 import { DEFAULT_ROOM_CONFIG } from '@/types/game';
@@ -15,6 +15,9 @@ const roomCode = ref('');
 const busy = ref(false);
 const err = ref<string | null>(null);
 const showHelp = ref(false);
+
+onMounted(() => sound.startMusic('/audio/ciara-level-up.mp3'));
+onUnmounted(() => sound.stopMusic());
 
 async function host(): Promise<void> {
   if (!name.value.trim()) {
