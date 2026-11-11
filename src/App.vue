@@ -41,7 +41,7 @@ onMounted(() => {
     <header class="flex items-center justify-between px-6 py-4">
       <RouterLink to="/" class="font-display text-xl font-black tracking-widest">
         <span class="neon-text-green">&gt;_</span>
-        <span class="neon-text-cyan">CODE</span><span class="neon-text-magenta">BREAKERS</span>
+        <span class="neon-text-cyan">MAUI</span><span class="neon-text-magenta">POWERUP</span>
       </RouterLink>
       <div class="flex items-center gap-2">
         <button

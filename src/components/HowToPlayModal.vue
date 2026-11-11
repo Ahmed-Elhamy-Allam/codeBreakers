@@ -21,7 +21,7 @@ function close(): void {
         class="panel my-auto w-full max-w-3xl border-neon-cyan p-6 shadow-neon-cyan"
         role="dialog"
         aria-modal="true"
-        aria-label="How to play CodeBreakers"
+        aria-label="How to play MAUIPOWERUP"
       >
         <div class="mb-4 flex items-start justify-between">
           <div>
@@ -38,7 +38,7 @@ function close(): void {
         </div>
 
         <p class="mb-5 text-sm text-cyan-500">
-          CodeBreakers is a real-time team race. Every player cracks their own secret code for
+          MAUIPOWERUP is a real-time team race. Every player cracks their own secret code for
           their team across <span class="neon-text-magenta">3 rounds</span>. Your team shares one
           pool of time (or tries). Think fast, help your teammates, and sabotage your rivals.
         </p>

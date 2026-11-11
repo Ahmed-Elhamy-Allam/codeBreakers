@@ -1,4 +1,4 @@
-# CodeBreakers 🟢 `>_`
+# MAUIPOWERUP 🟢 `>_`
 
 A high-energy, real-time multiplayer **code-cracking party game**. Each player
 cracks their own secret code for their **team**, racing a shared clock (or a
@@ -48,7 +48,7 @@ cp .env.example .env.local   # (PowerShell: Copy-Item .env.example .env.local)
 > `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`.
 
 ### Getting the Ably key
-1. Sign up at https://ably.com, create an app named `codebreakers`.
+1. Sign up at https://ably.com, create an app named `mauipowerup`.
 2. Open the app → **API Keys** → copy the root key (`xxxx.yyyy:zzzz`).
 3. Put it in `.env.local` as `ABLY_API_KEY=...`.
 
@@ -56,7 +56,7 @@ cp .env.example .env.local   # (PowerShell: Copy-Item .env.example .env.local)
 1. In the Vercel dashboard → your project → **Storage** → **Create Database**.
 2. Under **Marketplace Database Providers** expand **Upstash** and pick
    **Upstash for Redis**.
-3. Choose the **free** plan + a region, name it `codebreakers-kv`.
+3. Choose the **free** plan + a region, name it `mauipowerup-kv`.
 4. **Connect** it to your project for Production + Preview + Development.
 5. Sync the injected vars locally:
    ```bash
