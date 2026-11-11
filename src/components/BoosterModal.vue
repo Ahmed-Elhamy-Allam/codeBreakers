@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useGameStore } from '@/stores/gameStore';
 import { BOOSTERS, type BoosterType } from '@/types/game';
 import { sound } from '@/services/SoundService';
@@ -9,7 +9,15 @@ const store = useGameStore();
 const chosen = ref<BoosterType | null>(null);
 const target = ref<string>('');
 
-const show = computed(() => store.showBoosterModal);
+const show = computed(() => store.canChooseBooster);
+
+watch(show, (visible) => {
+  if (!visible) {
+    store.closeBoosterModal();
+    chosen.value = null;
+    target.value = '';
+  }
+});
 
 const teammates = computed(() => {
   const me = store.localPlayer;

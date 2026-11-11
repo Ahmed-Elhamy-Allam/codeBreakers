@@ -1,5 +1,5 @@
 /**
- * CodeBreakers — Domain models, game-state types, and Ably messaging contracts.
+ * MAUIPOWERUP — Domain models, game-state types, and Ably messaging contracts.
  *
  * SECURITY INVARIANT: The secret code is NEVER represented in any client-facing
  * type. `secretLength` (how many digits) is public; the digits themselves live

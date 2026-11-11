@@ -1,9 +1,9 @@
 {
-  "name": "codebreakers",
+  "name": "mauipowerup",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "CodeBreakers - Real-Time Multiplayer Code-Cracking Party Game",
+  "description": "MAUIPOWERUP - Real-Time Multiplayer Code-Cracking Party Game",
   "scripts": {
     "dev": "vite",
     "dev:vercel": "vercel dev",
