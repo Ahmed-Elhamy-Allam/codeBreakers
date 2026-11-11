@@ -127,11 +127,6 @@ export const useGameStore = defineStore('game', {
     localBoard(state): PlayerBoard | undefined {
       return state.boards[state.localPlayerId];
     },
-    canChooseBooster(state): boolean {
-      return state.showBoosterModal && state.phase === 'playing' &&
-        state.boards[state.localPlayerId]?.status === 'solved' &&
-        Object.values(state.boards).some((board) => board.status === 'cracking');
-    },
     playerList(state): Player[] {
       return Object.values(state.players);
     },
@@ -496,7 +491,7 @@ export const useGameStore = defineStore('game', {
       }
 
       sound.play('win');
-      this.showBoosterModal = this.phase === 'playing' && !this.allPlayersDone();
+      this.showBoosterModal = true;
       trackEvent('code_solved');
 
       await this.broadcast({
@@ -585,17 +580,8 @@ export const useGameStore = defineStore('game', {
 
     // ---------- Boosters ----------
 
-    closeBoosterModal(): void {
-      this.showBoosterModal = false;
-    },
-
     async chooseBooster(type: BoosterType, targetPlayerId?: string): Promise<void> {
-      this.closeBoosterModal();
-
-      if (!this.canChooseBooster) {
-        return;
-      }
-
+      this.showBoosterModal = false;
       const player = this.players[this.localPlayerId];
       if (!player) return;
       const step = this.config.mode === 'time' ? 60 : 2;
