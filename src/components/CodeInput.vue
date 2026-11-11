@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { sound } from '@/services/SoundService';
 
 const props = defineProps<{
@@ -58,6 +58,8 @@ function focusIndex(i: number): void {
 function focusFirstAvailable(): void {
   focusIndex(firstAvailableIndex());
 }
+
+onMounted(focusFirstAvailable);
 
 function onInput(i: number, ev: Event): void {
   if (isLocked(i)) return;
