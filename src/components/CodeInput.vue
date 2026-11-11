@@ -61,6 +61,17 @@ function focusFirstAvailable(): void {
 
 onMounted(focusFirstAvailable);
 
+function onBeforeInput(i: number, ev: Event): void {
+  const inputEvent = ev as InputEvent;
+  if (props.disabled || isLocked(i) || !inputEvent.cancelable) return;
+  if (inputEvent.inputType !== 'insertText' || !/^[0-9]$/.test(inputEvent.data ?? '')) return;
+
+  // Replace the digit before maxlength can block typing into a filled slot.
+  inputEvent.preventDefault();
+  (inputEvent.target as HTMLInputElement).value = inputEvent.data!;
+  onInput(i, inputEvent);
+}
+
 function onInput(i: number, ev: Event): void {
   if (isLocked(i)) return;
   const el = ev.target as HTMLInputElement;
@@ -159,6 +170,7 @@ defineExpose({
             ? 'border-neon-green bg-neon-green/10 text-neon-green shadow-neon-green animate-lockIn'
             : 'border-cyber-border bg-cyber-bg text-neon-cyan focus:border-neon-cyan focus:shadow-neon-cyan'
         "
+        @beforeinput="onBeforeInput(i, $event)"
         @input="onInput(i, $event)"
         @keydown="onKeydown(i, $event)"
       />
