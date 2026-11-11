@@ -590,15 +590,14 @@ export const useGameStore = defineStore('game', {
     },
 
     async chooseBooster(type: BoosterType, targetPlayerId?: string): Promise<void> {
+      this.closeBoosterModal();
+
       if (!this.canChooseBooster) {
         return;
       }
 
       const player = this.players[this.localPlayerId];
       if (!player) return;
-      // Eligibility depends on the modal being open. Consume the choice only
-      // after validation, but before any await so repeated clicks cannot apply it twice.
-      this.closeBoosterModal();
       const step = this.config.mode === 'time' ? 60 : 2;
       const myTeam = player.teamId;
       // Re-anchor time so pool edits apply cleanly to live countdowns.
